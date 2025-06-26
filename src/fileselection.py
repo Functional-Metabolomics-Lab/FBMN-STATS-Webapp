@@ -60,13 +60,23 @@ def load_from_gnps(task_id, cmn=False):
         ft = workflow_fbmn.get_quantification_dataframe(task_id, gnps2=True)
         md = workflow_fbmn.get_metadata_dataframe(task_id, gnps2=True).set_index("filename")
         an = taskresult.get_gnps2_task_resultfile_dataframe(task_id, "nf_output/library/merged_results_with_gnps.tsv")[["#Scan#", "Compound_Name"]].set_index("#Scan#")
-    except urllib.error.HTTPError as e:
+
+        if cmn and (ft is None or ft.empty):
+            raise ValueError("Empty result from workflow_fbmn — falling back to CMN CSV path.")
+            
+    except (urllib.error.HTTPError, ValueError) as e:
         print(f"HTTP Error encountered: {e}") # GNPS1 task IDs can not be retrieved and throw HTTP Error 500
+        
         if cmn:
             ft_url = f"https://gnps2.org/resultfile?task={task_id}&file=nf_output/clustering/featuretable_reformatted_precursorintensity.csv"
             md_url = f"https://gnps2.org/resultfile?task={task_id}&file=nf_output/metadata/merged_metadata.tsv"
             
-            ft = pd.read_csv(ft_url)
+            try:
+                ft = pd.read_csv(ft_url)
+            except Exception as e:
+                st.error(f"Failed to load CMN feature table: {e}")
+                ft = None
+                
             try:
                 md = pd.read_csv(md_url, sep = "\t", index_col="filename")
             except pd.errors.EmptyDataError:
