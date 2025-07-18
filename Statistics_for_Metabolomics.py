@@ -4,7 +4,7 @@ from src.common import *
 
 page_setup()
 
-st.image("assets/FBMN-STATS-GUIed_logo2.png", use_column_width=True)
+st.image("assets/FBMN-STATS-GUIed_logo2.png", use_container_width=True)
 
 st.markdown("""
 ## Quickstart Guide

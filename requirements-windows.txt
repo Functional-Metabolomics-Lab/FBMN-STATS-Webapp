@@ -6,4 +6,6 @@ pingouin
 kaleido
 openpyxl
 scikit-posthocs
+scikit-bio
+scikit-learn
 git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git
