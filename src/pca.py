@@ -18,19 +18,19 @@ def get_pca_df(scaled, n=5):
 
 
 @st.cache_resource
-def get_pca_scatter_plot(pca_df, pca_variance, attribute, md):
+def get_pca_scatter_plot(pca_df, pca_variance, attribute, md, pca_x_axis, pca_y_axis):
     title = f"PRINCIPAL COMPONENT ANALYSIS"
 
     df = pd.merge(
-        pca_df[["PC1", "PC2"]],
+        pca_df[[pca_x_axis, pca_y_axis]],
         md[attribute].apply(str),
         left_index=True,
         right_index=True,
     )
     fig = px.scatter(
         df,
-        x="PC1",
-        y="PC2",
+        x=pca_x_axis,
+        y=pca_y_axis,
         template="plotly_white",
         width=600,
         height=400,
@@ -41,11 +41,10 @@ def get_pca_scatter_plot(pca_df, pca_variance, attribute, md):
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
         title={"text": title, "font_color": "#3E3D53"},
-        xaxis_title=f"PC1 {round(pca_variance[0]*100, 1)}%",
-        yaxis_title=f"PC2 {round(pca_variance[1]*100, 1)}%",
+        xaxis_title=f"{pca_x_axis} ({round(pca_variance[int(pca_x_axis[2:]) - 1] * 100, 1)}%)",
+        yaxis_title=f"{pca_y_axis} ({round(pca_variance[int(pca_y_axis[2:]) - 1] * 100, 1)}%)",
     )
     return fig
-
 
 @st.cache_resource
 def get_pca_scree_plot(pca_df, pca_variance):

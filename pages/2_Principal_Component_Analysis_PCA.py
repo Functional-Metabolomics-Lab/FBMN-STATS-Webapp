@@ -74,7 +74,9 @@ if not st.session_state.data.empty:
             pca_df_filtered,
             pca_variance,
             st.session_state.pca_attribute,
-            md_filtered
+            md_filtered, 
+            pca_x_axis,
+            pca_y_axis
         )
         show_fig(fig, "principal-component-analysis")
     with t2:
