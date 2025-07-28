@@ -27,6 +27,7 @@ def get_pca_scatter_plot(pca_df, pca_variance, attribute, md, pca_x_axis, pca_y_
         left_index=True,
         right_index=True,
     )
+
     fig = px.scatter(
         df,
         x=pca_x_axis,
