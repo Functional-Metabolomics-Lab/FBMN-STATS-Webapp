@@ -48,6 +48,7 @@ try:
             ],
             key="pcoa_distance_matrix",
         )
+        
         permanova, pcoa_result = permanova_pcoa(
             st.session_state.data,
             st.session_state.pcoa_distance_matrix,
