@@ -46,6 +46,7 @@ if not st.session_state.data.empty:
     md_filtered = st.session_state.md[
         st.session_state.md[attribute_col].isin(st.session_state.pca_category_filter)
     ]
+    
     data_filtered = st.session_state.data.loc[md_filtered.index]
    
     if data_filtered.shape[0] <= 2:

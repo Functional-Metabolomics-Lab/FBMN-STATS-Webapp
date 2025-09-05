@@ -24,7 +24,6 @@ corrections_map = {"no correction": "none",
                    "Benjamini/Yekutieli FDR": "fdr_by",
                    }
 
-
 def reset_dataframes():
     for key in dataframe_names:
         st.session_state[key] = pd.DataFrame()
@@ -128,14 +127,12 @@ def page_setup():
             unsafe_allow_html=True,
         )
 
-
 def v_space(n, col=None):
     for _ in range(n):
         if col:
             col.write("")
         else:
             st.write("")
-
 
 def open_df(file):
     separators = {"txt": "\t", "tsv": "\t", "csv": ","}
@@ -159,14 +156,12 @@ def open_df(file):
     except:
         return pd.DataFrame()
 
-
 def show_table(df, title="", col="", download=True):
     if col:
         col = col
     else:
         col = st
     col.dataframe(df, use_container_width=True)
-
 
 def show_fig(fig, download_name, container_width=True):
     st.plotly_chart(
@@ -190,7 +185,6 @@ def show_fig(fig, download_name, container_width=True):
             },
         },
     )
-
 
 def download_plotly_figure(fig, filename="", col=""):
     buffer = io.BytesIO()
