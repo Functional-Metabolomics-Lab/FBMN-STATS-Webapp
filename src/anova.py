@@ -75,11 +75,14 @@ def gen_anova_data(df, columns, groups_col):
         yield col, p, f
 
 def add_p_correction_to_anova(df, correction):
+    # add Bonferroni corrected p-values for multiple testing correction
     if "p-corrected" not in df.columns:
         df.insert(2, "p-corrected",
                   pg.multicomp(df["p"].astype(float), method=correction)[1])
+    # add significance
     if "significant" not in df.columns:
         df.insert(3, "significant", df["p-corrected"] < 0.05)
+    
     df.sort_values("p", inplace=True)
     return df
 
@@ -224,7 +227,7 @@ def get_metabolite_boxplot(anova, metabolite):
     except Exception:
         p_value_str = str(p_value)
 
-    title = f"corrected p-value: {p_value_str}"
+    title = f"Corrected p-value: {p_value_str}"
     fig = px.box(
         df,
         x=attribute,
