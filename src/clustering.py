@@ -14,7 +14,7 @@ def get_dendrogram(data, label_pos="bottom"):
 
 
 @st.cache_resource
-def get_heatmap(data):
+def get_heatmap(data, vmin=None, vmax=None):
     # SORT DATA TO CREATE HEATMAP
 
     # Compute linkage matrix from distances for hierarchical clustering
@@ -36,21 +36,27 @@ def get_heatmap(data):
     # Create dataframe with sorted features
     ord_ft = ord_samp.T.reset_index()
     ord_ft = ord_ft.reindex(cluster_ft["leaves"])
-
-    ord_ft.drop(columns=["metabolite"], inplace=True)
-    
-    # Append string prefix to numeric indeces
-    ord_ft.index = pd.Index(["m_"+x if x.isnumeric() else x for x in ord_ft.index.astype(str)])
+    # Set index to original metabolite names if available
+    if "metabolite" in ord_ft.columns:
+        ord_ft.set_index("metabolite", inplace=True)
+    # Otherwise, keep the current index
     
     # Heatmap
+    # Automatically set color range to 5th and 95th percentiles if not provided
+    if vmin is None:
+        vmin = np.nanpercentile(ord_ft.values, 5)
+    if vmax is None:
+        vmax = np.nanpercentile(ord_ft.values, 95)
+
     fig = px.imshow(
         ord_ft,
         y=ord_ft.index.tolist(),
         x=list(ord_ft.columns),
         text_auto=False,
         aspect="auto",
-        color_continuous_scale="PuOr_r"
-        #range_color=[ord_ft.min().min(), ord_ft.max().max()],
+        color_continuous_scale="rainbow",
+        zmin=vmin,
+        zmax=vmax
     )
 
     fig.update_layout(

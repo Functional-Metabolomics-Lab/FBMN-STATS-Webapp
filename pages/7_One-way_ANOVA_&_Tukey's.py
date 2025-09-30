@@ -104,7 +104,7 @@ if not st.session_state.data.empty:
     ]
 
     if not st.session_state.df_tukey.empty:
-        tab_options += ["📈 Tukey's: plots", "📁 Tukey's: result"]
+        tab_options += ["📈 Tukey's: plots", "📁 Tukey's: result table"]
 
     if not st.session_state.df_anova.empty:
         tabs = st.tabs(tab_options)
@@ -176,8 +176,26 @@ if not st.session_state.data.empty:
                 show_fig(fig2, "tukeys-volcano")
             with tabs[4]:
                 df_tukey = st.session_state.df_tukey.copy()
-                styled = df_tukey.style.format({"p": "{:.2e}", "p-corrected": "{:.2e}"})
-                st.dataframe(styled, use_container_width=True, hide_index=True)
+                def sci_notation_or_plain(x):
+                    try:
+                        if pd.isnull(x):
+                            return x
+                        if isinstance(x, str):
+                            return x
+                        if float(x) == 0:
+                            return 0
+                        return f"{x:.2e}"
+                    except Exception:
+                        return x
+                style_dict = {}
+                for col in ["p", "p-corrected"]:
+                    if col in df_tukey.columns:
+                        style_dict[col] = sci_notation_or_plain
+                if style_dict:
+                    styled = df_tukey.style.format(style_dict)
+                    st.dataframe(styled, use_container_width=True, hide_index=True)
+                else:
+                    st.dataframe(df_tukey, use_container_width=True, hide_index=True)
 
 else:
     st.warning(

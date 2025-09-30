@@ -12,9 +12,36 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
     for col in st.session_state.data.columns:
         group1 = df[col][df[ttest_attribute] == target_groups[0]]
         group2 = df[col][df[ttest_attribute] == target_groups[1]]
-        result = pg.ttest(group1, group2, paired, alternative, correction)
+        
+        # Determine which t-test to use
+        use_welch = False
+        if correction == "auto":
+            use_welch = (len(group1) != len(group2))
+        elif correction == "True":
+            use_welch = True
+        elif correction == "False":
+            use_welch = False
+        # Calculate t-test
+        result = pg.ttest(group1, group2, paired, alternative, use_welch)
+        # Calculate degrees of freedom
+        if use_welch:
+            # Welch's df calculation
+            s1 = np.var(group1, ddof=1)
+            s2 = np.var(group2, ddof=1)
+            n1 = len(group1)
+            n2 = len(group2)
+            numerator = (s1/n1 + s2/n2)**2
+            denominator = ((s1/n1)**2)/(n1-1) + ((s2/n2)**2)/(n2-1)
+            df_welch = numerator / denominator if denominator != 0 else np.nan
+            result["df"] = df_welch
+            result["ttest_type"] = "Welch"
+        else:
+            # Student's t-test df
+            n1 = len(group1)
+            n2 = len(group2)
+            result["df"] = n1 + n2 - 2
+            result["ttest_type"] = "Student"
         result["metabolite"] = col
-
         ttest.append(result)
 
     ttest = pd.concat(ttest).set_index("metabolite")

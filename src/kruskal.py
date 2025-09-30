@@ -13,7 +13,7 @@ def gen_kruskal_data(group_data):
             statistic, p = kruskal(*[df[col] for df in group_data])
             yield col, p, statistic
         except ValueError:
-            # Skip metabolites with identical values
+            # Skip metabolites with identical values"
             continue
 
 def add_p_correction_to_kruskal(df, correction):
@@ -27,8 +27,6 @@ def add_p_correction_to_kruskal(df, correction):
     # sort by p-value
     df.sort_values("p", inplace=True)
     return df
-
-
 
 @st.cache_data(show_spinner="Running Kruskal Wallis test...")
 def kruskal_wallis(df, attribute, correction, elements):
@@ -180,7 +178,7 @@ def get_metabolite_boxplot(kruskal, metabolite):
 def gen_pairwise_dunn(group_data):
     """Yield results for pairwise dunn test for all metabolites between two options within the attribute."""
     for col in group_data[0].columns:
-        # posthoc_dunn returns a 2x2 matrix with p values, we just need one with from the comparison
+        # posthoc_dunn returns a 2x2 matrix with p values, need one with from the comparison
         p = sp.posthoc_dunn([df[col] for df in group_data]).iloc[0, 1]
         yield (col, p)
 
