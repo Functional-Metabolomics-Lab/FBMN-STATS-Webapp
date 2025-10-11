@@ -28,7 +28,7 @@ def get_new_index(df):
         column_names = [col[0] for col in cols if col]
         if not column_names:
             return df, "no matching columns"
-        # set metabolites column with index as default
+        # set metabolites column as first column (not index)
         df["metabolite"] = df.index
         if len(column_names) == 2:
             df["metabolite"] = df[column_names[0]].round(5).astype(str)
@@ -38,8 +38,10 @@ def get_new_index(df):
                 )
             if "row ID" in df.columns:
                 df["metabolite"] = df["row ID"].astype(str) + "_" + df["metabolite"]
-        df.set_index("metabolite", inplace=True)
-    except:
+        # Move 'metabolite' to the first column
+        cols_order = ["metabolite"] + [col for col in df.columns if col != "metabolite"]
+        df = df[cols_order]
+    except Exception:
         return df, "fail"
     return df, "success"
 
@@ -109,9 +111,15 @@ def load_from_gnps(task_id, cmn=False):
         index_with_mz_RT = ft.apply(lambda x: f'{x["row ID"]}_{round(x["row m/z"], 4)}_{round(x["row retention time"], 2)}', axis=1)
         ft.index = index_with_mz_RT
         if 'df_gnps_annotations' in st.session_state:
-            st.session_state["df_gnps_annotations"].index = index_with_mz_RT
-            st.session_state["df_gnps_annotations"]["GNPS annotation"] = ft["row ID"].apply(lambda x: an.loc[x, "Compound_Name"] if x in an.index else pd.NA)
-            st.session_state["df_gnps_annotations"].dropna(inplace=True)
+            df_ann = st.session_state["df_gnps_annotations"]
+            if len(df_ann) == len(index_with_mz_RT):
+                df_ann.index = index_with_mz_RT
+                df_ann["GNPS annotation"] = ft["row ID"].apply(lambda x: an.loc[x, "Compound_Name"] if x in an.index else pd.NA)
+                df_ann.dropna(inplace=True)
+                st.session_state["df_gnps_annotations"] = df_ann
+            else:
+                import warnings
+                warnings.warn("Length mismatch: df_gnps_annotations and index_with_mz_RT have different lengths. Skipping index assignment.")
     
     ft.index.name = 'metabolite'
     return ft, md
@@ -121,6 +129,7 @@ def load_ft(ft_file):
     ft = open_df(ft_file)
     ft = ft.dropna(axis=1)
     # determining index with m/z, rt and adduct information
+
     if "metabolite" in ft.columns:
         ft.index = ft["metabolite"]
     else:
@@ -132,6 +141,7 @@ No **'metabolite'** column for unique metabolite ID specified.
 
 Please select the correct one or try to automatically create an index based on RT and m/z values."""
         )
+        
         if st.checkbox("Create index automatically", value=True):
             ft, msg = get_new_index(ft)
             if msg == "no matching columns":
@@ -174,3 +184,70 @@ Please select the correct one."""
         st.error(f"Check meta data table!\n{allowed_formats}")
 
     return md
+
+def load_annotation(annotation_file, ft):
+    """
+    Load and process annotation file 
+    """
+    an_gnps = open_df(annotation_file)
+    # Only try to match columns if ft is not empty and has columns
+    if ft is not None and hasattr(ft, 'columns') and len(ft.columns) > 0:
+        ft_first_col = ft.columns[0]
+        ft_first_values = set(ft[ft_first_col].astype(str))
+        matched_col = None
+        for col in an_gnps.columns:
+            if set(an_gnps[col].astype(str)).intersection(ft_first_values):
+                matched_col = col
+                break
+        if matched_col:
+            an_gnps = an_gnps.rename(columns={matched_col: "metabolite"})
+            an_gnps.index = an_gnps["metabolite"].astype(str)
+            return an_gnps
+    # If no match or ft is empty, create a new 'metabolite' column with the specified format
+    for required_col in ["cluster index", "parent mass", "RTMean"]:
+        if required_col not in an_gnps.columns:
+            an_gnps[required_col] = "NA"
+    parent_mass = an_gnps["parent mass"]
+    rtmean = an_gnps["RTMean"]
+    try:
+        parent_mass_str = parent_mass.astype(float).round(5).astype(str)
+    except Exception:
+        parent_mass_str = parent_mass.astype(str)
+    try:
+        rtmean_str = rtmean.astype(float).round(2).astype(str)
+    except Exception:
+        rtmean_str = rtmean.astype(str)
+    an_gnps["metabolite"] = parent_mass_str
+    if "RTMean" in an_gnps.columns:
+        an_gnps["metabolite"] = an_gnps["metabolite"] + "@" + rtmean_str
+    if "cluster index" in an_gnps.columns:
+        an_gnps["metabolite"] = an_gnps["cluster index"].astype(str) + "_" + an_gnps["metabolite"]
+    # Move 'metabolite' column to the front
+    cols = an_gnps.columns.tolist()
+    if "metabolite" in cols:
+        cols.insert(0, cols.pop(cols.index("metabolite")))
+        an_gnps = an_gnps[cols]
+    return an_gnps
+
+def load_nw(network_file):
+    """
+    Load and process network pair file. 
+    """
+    nw = open_df(network_file)
+    return nw
+
+def load_from_gnps2(task_id):
+
+    try: # GNPS2 will run here
+        ft = workflow_fbmn.get_quantification_dataframe(task_id, gnps2=True).set_index("row ID")
+        md = workflow_fbmn.get_metadata_dataframe(task_id, gnps2=True).set_index("filename")
+        an = taskresult.get_gnps2_task_resultfile_dataframe(task_id, "nf_output/library/merged_results_with_gnps.tsv")
+        nw = taskresult.get_gnps2_task_resultfile_dataframe(task_id, "nf_output/networking/filtered_pairs.tsv")
+
+    except urllib.error.HTTPError as e:
+        print(f"HTTP Error encountered: {e}") # GNPS1 task IDs can not be retrieved and throw HTTP Error 500
+        
+    if md.empty: # Handle empty metadata
+        md = pd.DataFrame()
+
+    return ft, md, an, nw

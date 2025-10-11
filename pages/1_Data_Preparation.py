@@ -34,65 +34,177 @@ else:
 
     elif file_origin in ["GNPS(2) task ID", "Example dataset from publication", "GNPS2 classical molecular networking (CMN)"]:
         st.warning("💡 This tool only supports task ID from GNPS1 and 2 not from Quickstart GNPS1.")
+        
         if file_origin == "Example dataset from publication":
             task_id_default = "b661d12ba88745639664988329c1363e" # 63e8b3da08df41fe95031e4710e0476b
             disabled = True
             cmn_flag = False
+
+            task_id = st.text_input("GNPS task ID", task_id_default, disabled=disabled)
+        
+        
         elif file_origin == "GNPS2 classical molecular networking (CMN)":
             task_id_default = "" # 2a65f90094654235a4c8d337fdca11e1
             disabled = False
             cmn_flag = True
-        else:
+
+            task_id = st.text_input("GNPS task ID", task_id_default, disabled=disabled)
+            _, c2, _ = st.columns(3)
+            
+            if c2.button("Load files from GNPS", type="primary", disabled=len(task_id) == 0, use_container_width=True):
+                st.session_state["ft_gnps"], st.session_state["md_gnps"] = load_from_gnps(task_id, cmn= cmn_flag)   
+            
+            if not st.session_state["ft_gnps"].empty and st.session_state["md_gnps"].empty:
+                st.warning("⚠️ **Metadata file is missing.** The metadata is essential for performing statistical analysis and understanding the context of your data. Please upload one.")
+                
+                md_file = st.file_uploader("Meta Data Table")
+                if md_file:
+                    md = load_md(md_file)
+                    st.success("Meta data was loaded successfully!")
+            
+            if "ft_gnps" in st.session_state:
+                if not st.session_state["ft_gnps"].empty:
+                    ft = st.session_state["ft_gnps"]
+
+            if "md_gnps" in st.session_state:
+                if not st.session_state["md_gnps"].empty:
+                    md = st.session_state["md_gnps"]
+
+
+        elif file_origin == "GNPS(2) task ID":
             task_id_default = ""
             disabled = False
             cmn_flag = False
-        task_id = st.text_input("GNPS task ID", task_id_default, disabled=disabled)
-        _, c2, _ = st.columns(3)
-        
-        if c2.button("Load files from GNPS", type="primary", disabled=len(task_id) == 0, use_container_width=True):
-            st.session_state["ft_gnps"], st.session_state["md_gnps"] = load_from_gnps(task_id, cmn= cmn_flag)   
-        
-        if not st.session_state["ft_gnps"].empty and st.session_state["md_gnps"].empty:
-            st.warning("⚠️ **Metadata file is missing.** The metadata is essential for performing statistical analysis and understanding the context of your data. Please upload one.")
+
+            task_id = st.text_input("GNPS task ID", task_id_default, disabled=disabled)
+            if task_id:
+                st.session_state["task_id"] = task_id
+            else:
+                st.session_state["task_id"] = None
             
-            md_file = st.file_uploader("Meta Data Table")
-            if md_file:
-                md = load_md(md_file)
-                st.success("Meta data was loaded successfully!")
+            _, c2, _ = st.columns(3)
+            
+            if c2.button("Load files from GNPS", type="primary", disabled=len(task_id) == 0, use_container_width=True):
+                st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps2(task_id)
+
+            if not st.session_state["ft_gnps"].empty and st.session_state["md_gnps"].empty:
+                st.warning("⚠️ **Metadata file is missing.** The metadata is essential for performing statistical analysis and understanding the context of your data. Please upload one.")
+                
+                md_file = st.file_uploader("Meta Data Table")
+                if md_file:
+                    md = load_md(md_file)
+                    st.success("Meta data was loaded successfully!")
+
+            tab_options = []
+
+            if "ft_gnps" in st.session_state:
+                if st.session_state["ft_gnps"] is not None and not st.session_state["ft_gnps"].empty:
+                    ft = st.session_state["ft_gnps"]
+                    tab_options.append("**Quantification Table**") 
+
+            if "md_gnps" in st.session_state:
+                if st.session_state["md_gnps"] is not None and not st.session_state["md_gnps"].empty:
+                    md = st.session_state["md_gnps"]
+                    tab_options.append("**Meta Data Table**")
+
+            if "an_gnps" in st.session_state:
+                if st.session_state["an_gnps"] is not None and not st.session_state["an_gnps"].empty:
+                    an = st.session_state["an_gnps"]
+                    tab_options.append("**Annotation Information File**")
+
+            if "nw_gnps" in st.session_state:
+                if st.session_state["nw_gnps"] is not None and not st.session_state["nw_gnps"].empty:
+                    nw = st.session_state["nw_gnps"]
+                    tab_options.append("**Network Edge File**")
+
+            if st.session_state["task_id"] is None or len(st.session_state["task_id"]) == 0:
+                st.session_state["ft_gnps"] = None
+                st.session_state["md_gnps"] = None
+                st.session_state["an_gnps"] = None
+                st.session_state["nw_gnps"] = None
+
+            if tab_options and task_id:
+                tabs = st.tabs(tab_options)
+                tab_index = 0
+                if "ft_gnps" in st.session_state and st.session_state["ft_gnps"] is not None and not st.session_state["ft_gnps"].empty:
+                    with tabs[tab_index]:
+                        st.dataframe(ft, hide_index=True)
+                    tab_index += 1
+                if "md_gnps" in st.session_state and st.session_state["md_gnps"] is not None and not st.session_state["md_gnps"].empty:
+                    with tabs[tab_index]:
+                        st.dataframe(md, hide_index=True)
+                    tab_index += 1
+                if "an_gnps" in st.session_state and st.session_state["an_gnps"] is not None and not st.session_state["an_gnps"].empty:
+                    with tabs[tab_index]:
+                        st.dataframe(an, hide_index=True)
+                    tab_index += 1
+                if "nw_gnps" in st.session_state and st.session_state["nw_gnps"] is not None and not st.session_state["nw_gnps"].empty:
+                    with tabs[tab_index]:
+                        st.dataframe(nw, hide_index=True)
+                    tab_index += 1
         
-        if "ft_gnps" in st.session_state:
-            if not st.session_state["ft_gnps"].empty:
-                ft = st.session_state["ft_gnps"]
-
-        if "md_gnps" in st.session_state:
-            if not st.session_state["md_gnps"].empty:
-                md = st.session_state["md_gnps"]
-
+        
     if file_origin == "Quantification table and meta data files":
+        
         st.info("💡 Upload tables in txt (tab separated), tsv, csv or xlsx (Excel) format.")
         c1, c2 = st.columns(2)
         # Feature Quantification Table
         ft_file = c1.file_uploader("Quantification Table")
         if ft_file:
             st.session_state["ft_uploaded"] = load_ft(ft_file)
+        else:
+            st.session_state["ft_uploaded"] = None
 
         # Meta Data Table
         md_file = c2.file_uploader("Meta Data Table")
         if md_file:
             st.session_state["md_uploaded"] = load_md(md_file)
+        else:
+            st.session_state["md_uploaded"] = None
+
+        
+        annotation_file = st.file_uploader("Upload Annotation Information File (Optional)", type=["csv", "xlsx", "txt", "tsv"])
+        
+        if annotation_file:
+            st.session_state['an_gnps'] = load_annotation(annotation_file, ft)
+        else:
+            st.session_state['an_gnps'] = None
 
         if "ft_uploaded" in st.session_state:
-            if not st.session_state["ft_uploaded"].empty:
+            if st.session_state["ft_uploaded"] is not None and not st.session_state["ft_uploaded"].empty:
                 ft = st.session_state["ft_uploaded"]
+        else:
+            st.error("Please upload a valid feature quantification table!")
 
         if "md_uploaded" in st.session_state:
-            if not st.session_state["md_uploaded"].empty:
+            if st.session_state["md_uploaded"] is not None and not st.session_state["md_uploaded"].empty:
                 md = st.session_state["md_uploaded"]
+        else:
+            st.error("Please upload a valid metadata table!")
 
-    if not ft.empty or not md.empty:
-        t1, t2 = st.tabs(["**Quantification Table**", "**Meta Data**"])
-        t1.dataframe(ft)
-        t2.dataframe(md)
+        if "an_gnps" in st.session_state:
+            if st.session_state['an_gnps'] is not None and not st.session_state['an_gnps'].empty:
+                an_gnps = st.session_state['an_gnps']
+            else: 
+                an_gnps = None
+        else:
+            st.error("Please upload a valid annotation information table!")
+
+        if an_gnps is not None and not an_gnps.empty:
+            t1, t2, t3 = st.tabs(["**Quantification Table**", "**Meta Data Table**", "**Annotation Information File**"])
+            with t1:
+                st.dataframe(ft, hide_index=True)
+            with t2:
+                st.dataframe(md)
+            with t3:
+                st.dataframe(an_gnps, hide_index=True)
+        else:
+            t1, t2 = st.tabs(["**Quantification Table**", "**Meta Data Table**"])
+            with t1:
+                st.dataframe(ft, hide_index=True)
+            with t2:
+                st.dataframe(md)
+
 
     if not ft.index.is_unique:
         st.error("Please upload a feature matrix with unique metabolite names.")
@@ -272,6 +384,8 @@ else:
             else:
                 st.error("No features left after blank removal!")
 
+        
+        
         _, c1, _ = st.columns(3)
         if c1.button("**Submit Data for Statistics!**", type="primary"):
             st.session_state["md"], st.session_state["data"] = normalization(
