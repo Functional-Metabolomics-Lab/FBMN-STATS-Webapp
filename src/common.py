@@ -26,7 +26,20 @@ corrections_map = {"no correction": "none",
 
 def reset_dataframes():
     for key in dataframe_names:
-        st.session_state[key] = pd.DataFrame()
+        st.session_state[key] = None
+
+def init_state():
+    defaults = {
+        "task_id": "",
+        "data_preparation_done": False,
+        "ft_uploaded": None,
+        "md_uploaded": None,
+        "ft_gnps": None,
+        "md_gnps": None,
+        # add more keys your app depends on
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 
 def clear_cache_button():
    if st.button("Clear Cache"):
@@ -35,6 +48,11 @@ def clear_cache_button():
             st.cache_data.clear()
         if hasattr(st, "cache_resource"):
             st.cache_resource.clear()
+        
+        # Clear all session state variables
+        for key in dataframe_names:
+            st.session_state[key] = None
+
         st.success("Cache cleared!")
 
 def page_setup():
