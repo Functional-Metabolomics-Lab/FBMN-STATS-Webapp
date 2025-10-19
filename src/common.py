@@ -24,10 +24,22 @@ corrections_map = {"no correction": "none",
                    "Benjamini/Yekutieli FDR": "fdr_by",
                    }
 
-
 def reset_dataframes():
     for key in dataframe_names:
-        st.session_state[key] = pd.DataFrame()
+        st.session_state[key] = None
+
+def init_state():
+    defaults = {
+        "task_id": "",
+        "data_preparation_done": False,
+        "ft_uploaded": None,
+        "md_uploaded": None,
+        "ft_gnps": None,
+        "md_gnps": None,
+        # add more keys your app depends on
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 
 def clear_cache_button():
    if st.button("Clear Cache"):
@@ -36,6 +48,11 @@ def clear_cache_button():
             st.cache_data.clear()
         if hasattr(st, "cache_resource"):
             st.cache_resource.clear()
+        
+        # Clear all session state variables
+        for key in dataframe_names:
+            st.session_state[key] = None
+
         st.success("Cache cleared!")
 
 def page_setup():
@@ -128,14 +145,12 @@ def page_setup():
             unsafe_allow_html=True,
         )
 
-
 def v_space(n, col=None):
     for _ in range(n):
         if col:
             col.write("")
         else:
             st.write("")
-
 
 def open_df(file):
     separators = {"txt": "\t", "tsv": "\t", "csv": ","}
@@ -159,14 +174,12 @@ def open_df(file):
     except:
         return pd.DataFrame()
 
-
 def show_table(df, title="", col="", download=True):
     if col:
         col = col
     else:
         col = st
     col.dataframe(df, use_container_width=True)
-
 
 def show_fig(fig, download_name, container_width=True):
     st.plotly_chart(
@@ -190,7 +203,6 @@ def show_fig(fig, download_name, container_width=True):
             },
         },
     )
-
 
 def download_plotly_figure(fig, filename="", col=""):
     buffer = io.BytesIO()

@@ -19,10 +19,13 @@ if not st.session_state.data.empty:
         options=[c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1],
         key="ttest_attribute",
     )
-    attribute_options = list(
-        set(st.session_state.md[st.session_state.ttest_attribute].dropna())
-    )
-    attribute_options.sort()
+    if st.session_state.ttest_attribute is not None:
+        attribute_options = list(
+            set(st.session_state.md[st.session_state.ttest_attribute].dropna())
+        )
+        attribute_options.sort()
+    else:
+        attribute_options = []
     c2.multiselect(
         "select **two** options from the attribute for comparison",
         options=attribute_options,

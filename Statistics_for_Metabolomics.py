@@ -3,6 +3,7 @@ import base64
 from src.common import *
 
 page_setup()
+init_state()
 
 st.image("assets/FBMN-STATS-GUIed_logo2.png", use_container_width=True)
 
