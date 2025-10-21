@@ -198,7 +198,10 @@ else:
         else:
             st.session_state["md_uploaded"] = None
         if annotation_file:
-            st.session_state['an_uploaded'] = load_annotation(annotation_file)
+            if st.session_state.get("ft_uploaded") is None or st.session_state.get("md_uploaded") is None:
+                st.error("Feature table or Metadata table is missing. Please upload both before uploading the annotation table.")
+            else:
+                st.session_state['an_uploaded'] = load_annotation(annotation_file)
         else:
             st.session_state['an_uploaded'] = None
         if nw_file:
@@ -207,7 +210,8 @@ else:
             st.session_state['nw_uploaded'] = None
        
         # --- Retrieve from session_state ---
-        ft, md, an, nw = get_uploaded_tables()
+        if st.session_state["ft_uploaded"] is not None or st.session_state["md_uploaded"] is not None:
+            ft, md, an, nw = get_uploaded_tables()
         
         st.session_state["ft"] = ft
         st.session_state["md"] = md
