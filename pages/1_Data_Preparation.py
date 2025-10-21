@@ -36,6 +36,7 @@ else:
     # b661d12ba88745639664988329c1363e
     if file_origin == "Small example dataset for testing":
         ft, md = load_example()
+        ft = ft.set_index('metabolite')
         an, nw, ft_with_annotations = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()  
         st.session_state.update({"ft": ft, "md": md, "an": an, "nw": nw, "ft_with_annotations": ft_with_annotations})
         show_all_files_in_table("ft", "md", "an", "nw", "ft_with_annotations")
@@ -52,6 +53,7 @@ else:
             _, c2, _ = st.columns(3)
             if c2.button("Load files from GNPS", type="primary", disabled=len(task_id) == 0, use_container_width=True):
                 st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps_fbmn(task_id)
+                st.session_state["ft_gnps"] = st.session_state["ft_gnps"]
                 
                 ft, md, an, nw, merged, name_key = get_gnps_tables()
                 st.session_state["ft_with_annotations"] = merged
@@ -72,6 +74,7 @@ else:
             
             if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, use_container_width=True):
                 st.session_state["ft_gnps"], st.session_state["md_gnps"],  st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps2_cmn(task_id)
+                st.session_state["ft_gnps"] = st.session_state["ft_gnps"]
 
                 if not st.session_state["ft_gnps"].empty and st.session_state["md_gnps"].empty:
                     st.warning("⚠️ **Metadata file is missing.** The metadata is essential for performing statistical analysis and understanding the context of your data. Please upload one.")
@@ -102,11 +105,17 @@ else:
                 st.session_state["task_id"] = task_id
             else:
                 st.session_state["task_id"] = None
+                st.session_state["ft_gnps"] = None
+                st.session_state["md_gnps"] = None
+                st.session_state["an_gnps"] = None
+                st.session_state["nw_gnps"] = None
+                st.session_state["ft_with_annotations"] = None
             
             _, c2, _ = st.columns(3)
             
             if c2.button("Load files from GNPS(2)", type="primary", disabled=len(task_id) == 0, use_container_width=True):
                 st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps_fbmn(task_id)
+                st.session_state["ft_gnps"] = st.session_state["ft_gnps"]
 
                 if not st.session_state["ft_gnps"].empty and st.session_state["md_gnps"].empty:
                     st.warning("⚠️ **Metadata file is missing.** The metadata is essential for performing statistical analysis and understanding the context of your data. Please upload one.")
@@ -116,6 +125,10 @@ else:
                         st.success("Metadata was loaded successfully!")
                 
                 ft, md, an, nw, merged, name_key = get_gnps_tables()
+                st.session_state["ft_gnps"] = ft
+                st.session_state["md_gnps"] = md
+                st.session_state["an_gnps"] = an
+                st.session_state["nw_gnps"] = nw
                 st.session_state["ft_with_annotations"] = merged
                 st.session_state["name_key"] = name_key
             
@@ -127,13 +140,15 @@ else:
 
             show_all_files_in_table("ft_gnps", "md_gnps", "an_gnps", "nw_gnps", "ft_with_annotations")
         
-        st.session_state["ft"] = ft
-        st.session_state["md"] = md
-        st.session_state["an"] = an
-        st.session_state["nw"] = nw
+        st.session_state["ft"] = st.session_state["ft_gnps"]
+        st.session_state["md"] = st.session_state["md_gnps"]
+        st.session_state["an"] = st.session_state["an_gnps"]
+        st.session_state["nw"] = st.session_state["nw_gnps"]
         st.session_state["ft_with_annotations"] = st.session_state.get("ft_with_annotations", pd.DataFrame())
         
     if file_origin == "Quantification table and meta data files":
+        if st.session_state.get("ft_with_annotations") is not None:
+            st.session_state["ft_with_annotations"] = None
         
         st.info("💡 Upload tables in txt (tab separated), tsv, csv or xlsx (Excel) format.")
         c1, c2 = st.columns(2)
@@ -175,13 +190,21 @@ else:
 
         # --- Load into session_state only when a new file arrives ---
         if ft_file:
-            st.session_state["ft_uploaded"] = load_ft(ft_file)
+            st.session_state["ft_uploaded"] = load_ft(ft_file).set_index('metabolite')
+        else:
+            st.session_state["ft_uploaded"] = None
         if md_file:
             st.session_state["md_uploaded"] = load_md(md_file)
+        else:
+            st.session_state["md_uploaded"] = None
         if annotation_file:
             st.session_state['an_uploaded'] = load_annotation(annotation_file)
+        else:
+            st.session_state['an_uploaded'] = None
         if nw_file:
             st.session_state['nw_uploaded'] = load_nw(nw_file)
+        else:
+            st.session_state['nw_uploaded'] = None
        
         # --- Retrieve from session_state ---
         ft, md, an, nw = get_uploaded_tables()
@@ -211,9 +234,9 @@ else:
             elif level == "info":
                 st.info(msg)
     
-    if not ft.empty and not ft.index.is_unique:
+    if ft is not None and not ft.empty and not ft.index.is_unique:
         st.error("Please upload a feature matrix with unique metabolite names.")
-    if not ft.empty and not md.empty:
+    if ft is not None and not ft.empty and md is not None and not md.empty:
         st.success("Files loaded successfully!")
 
     st.markdown("# Data Cleanup")
@@ -227,8 +250,7 @@ else:
         st.image("assets/figures/scaling.png")
     
     # Check if the data is available in the session state
-    if (
-        'ft' in st.session_state and 'md' in st.session_state and 
+    if ('ft' in st.session_state and 'md' in st.session_state and 
         st.session_state['ft'] is not None and not st.session_state['ft'].empty and 
         st.session_state['md'] is not None and not st.session_state['md'].empty
     ):
@@ -393,12 +415,8 @@ else:
                     with tab2:
                         fig = get_missing_values_per_feature_fig(ft, cutoff_LOD)
                         show_fig(fig, "missing-values")
-
-            
             else:
                 st.error("No features left after blank removal!")
-
-        
         
         _, c1, _ = st.columns(3)
         if c1.button("**Submit Data for Statistics!**", type="primary"):
@@ -407,3 +425,10 @@ else:
             )
             st.session_state["data_preparation_done"] = True
             st.rerun()
+
+            # # Display all rows of the "metabolite" column
+            # if "metabolite" in st.session_state.data.columns:
+            #     st.dataframe(st.session_state.data["metabolite"])
+            # else:
+            #     st.warning("The 'metabolite' column is not present in the data.")
+
