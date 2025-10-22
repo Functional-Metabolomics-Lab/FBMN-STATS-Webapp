@@ -61,6 +61,9 @@ else:
             show_all_files_in_table("ft_gnps", "md_gnps", "an_gnps", "nw_gnps", "ft_with_annotations")            
         
         elif file_origin == "GNPS2 classical molecular networking (CMN) task ID":
+            if st.session_state.get("ft_with_annotations") is not None:
+                st.session_state["ft_with_annotations"] = None
+
             task_id_default = "" # 2a65f90094654235a4c8d337fdca11e1
             disabled = False
 
