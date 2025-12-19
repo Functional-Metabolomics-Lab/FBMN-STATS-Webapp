@@ -101,8 +101,8 @@ def page_setup(page_name):
             v_space(1)
             clear_cache_button()
 
-        with st.container(height=750):
-            with st.expander("💬 Chat", expanded=True):
+        with st.expander("💬 Chat", expanded=True):
+            with st.container(height=750):
                 gemini_chat()
                 # openai4ochat()
             
