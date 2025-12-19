@@ -1,0 +1,13 @@
+[PAGE_CONTEXT]
+This page performs **Random Forest (RF)** analysis for **supervised feature classification** in the metabolomics dataset.
+- RF is a **supervised machine learning method** that predicts a selected metadata attribute using metabolite features.
+- The implementation is **simplified**: no hyperparameter tuning; users adjust only the **number of trees**.
+- Users select a **grouping attribute** and optionally filter categories (at least two required).
+- A fixed random seed can be used for **reproducibility**.
+- Model evaluation outputs include:
+  - **Out-of-Bag (OOB) error** to estimate generalization performance
+  - **Feature importance rankings** (metabolites contributing most to classification)
+  - **Classification report** (precision, recall, F1-score, support)
+  - **Confusion matrices** for training and test sets, with accuracy
+- Results are intended for **exploratory interpretation**, not definitive prediction or biomarker discovery.
+[/PAGE_CONTEXT]

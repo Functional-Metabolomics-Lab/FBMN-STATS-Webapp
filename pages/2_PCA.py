@@ -2,7 +2,7 @@ import streamlit as st
 from src.common import *
 from src.pca import *
 
-page_setup()
+page_setup("PCA")
 
 # pd.concat([st.session_state.md, st.session_state.data], axis=1)
 

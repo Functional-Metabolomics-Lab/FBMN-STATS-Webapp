@@ -1,0 +1,15 @@
+[PAGE_CONTEXT]
+This page provides an overview and quickstart guide for the FBMN-STATS web application.
+- FBMN-STATS supports statistical analysis of **feature-based molecular networking (FBMN)** metabolomics data.
+- The app is based on published workflows from the Functional Metabolomics Lab and VMOL.
+- Required inputs are a **feature quantification table** and a **metadata table**; optional GNPS annotation and node-pair tables may be included.
+- Users can fetch data directly using **GNPS or GNPS2 task IDs**.
+- Supported file formats include **CSV, TSV, TXT, and XLSX**.
+- Feature tables should include a metabolite identifier; automatic indexing via m/z and RT is supported.
+- Metadata must include a **filename column** matching sample names in the feature table.
+- Basic data cleanup options (blank removal, imputation, normalization, scaling) are provided for educational and exploratory use.
+- Available analyses include **PCA, PCoA (PERMANOVA), clustering, Random Forest**, and **univariate tests** (t-test, ANOVA/Tukey, Kruskal–Wallis/Dunn).
+- Multiple-testing correction uses **FDR-based methods** (BH recommended); results update only when analyses are re-run.
+- Outputs include **downloadable result tables** and **interactive plots** suitable for presentations and publications.
+- The app is intended for exploratory and instructional use; large datasets (>200 MB) may impact performance.
+[/PAGE_CONTEXT]

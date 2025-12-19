@@ -1,0 +1,11 @@
+[PAGE_CONTEXT]
+This page performs **Principal Coordinate Analysis (PCoA)** and **PERMANOVA** on the metabolomics dataset.
+- PCoA is an **unsupervised ordination method** that visualizes sample relationships using a **distance (dissimilarity) matrix**.
+- Distance metrics can include Bray–Curtis, Jaccard, Euclidean, and others, depending on data type.
+- Users can select the **first 10 principal coordinates (PCo1–PCo10)** to visualize patterns.
+- PERMANOVA tests whether group centroids differ significantly in multivariate space using **permutation-based resampling**.
+  - Reports include **Pseudo-F**, **R²**, and **p-value** for the selected grouping attribute.
+- Users select a **metadata attribute** for grouping and can filter categories.
+- PERMANOVA requires **at least two groups**; PCoA requires **at least 3 samples**.
+- Outputs include **PERMANOVA table**, **PCoA scatter plot**, **explained variance plot**, and **principal coordinate data table**.
+[/PAGE_CONTEXT]

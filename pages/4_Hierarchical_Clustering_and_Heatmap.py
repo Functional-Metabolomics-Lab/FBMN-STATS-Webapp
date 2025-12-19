@@ -2,7 +2,7 @@ import streamlit as st
 from src.common import *
 from src.clustering import *
 
-page_setup()
+page_setup("Hierarchical_Clustering_and_Heatmap")
 
 st.markdown("# Hierarchical Clustering & Heatmap")
 

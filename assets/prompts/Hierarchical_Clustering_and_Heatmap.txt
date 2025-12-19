@@ -1,0 +1,10 @@
+[PAGE_CONTEXT]
+This page displays **Hierarchical Clustering Analysis (HCA)** and a **clustered heatmap** of the metabolomics dataset.
+- HCA is an **unsupervised** method that groups samples (or features) based on similarity.
+- Clustering uses **Euclidean distance** and **complete linkage**.
+- Results are shown as a **dendrogram** and a **heatmap** of feature intensities across samples.
+- Similar samples or metabolites appear as blocks of similar colors.
+- Users can choose from multiple **color-blind-friendly heatmap palettes**.
+- Heatmaps may have limited label visibility due to high feature counts; zooming and hover are needed for detail.
+- Outputs include the **clustered heatmap visualization** and the **underlying heatmap data table**.
+[/PAGE_CONTEXT]

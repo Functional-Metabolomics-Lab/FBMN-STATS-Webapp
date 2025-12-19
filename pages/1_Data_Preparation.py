@@ -4,7 +4,7 @@ from src.common import *
 from src.fileselection import *
 from src.cleanup import *
 
-page_setup()
+page_setup("Data Preparation")
  
 st.markdown("# File Selection")
 

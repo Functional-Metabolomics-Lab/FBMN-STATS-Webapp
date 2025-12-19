@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import uuid
 import base64
+from src.chat import openaiassistantchat, openai4ochat
 
 dataframe_names = ("md",
                    "data",
@@ -61,7 +62,7 @@ def clear_cache_button():
 
         st.success("Cache cleared!")
 
-def page_setup():
+def page_setup(page_name):
     # streamlit configs
     st.set_page_config(
         page_title="Statistics for Metabolomics",
@@ -70,6 +71,13 @@ def page_setup():
         initial_sidebar_state="auto",
         menu_items=None,
     )
+    # Set the page streamlit variable
+    st.session_state["page"] = page_name
+
+    # Set a global unique chat ID for the session
+    if "chat_id" not in st.session_state:
+        st.session_state["chat_id"] = str(uuid.uuid4())
+
     # initialize global session state variables if not already present
     # DataFrames
     for key in dataframe_names:
@@ -93,6 +101,9 @@ def page_setup():
             v_space(1)
             clear_cache_button()
 
+        with st.expander("💬 Chat", expanded=True):
+            openai4ochat()
+            
         # Display two images side by side in the sidebar
         v_space(1)
         col1, col2 = st.columns(2)

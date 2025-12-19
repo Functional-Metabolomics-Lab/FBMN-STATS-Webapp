@@ -1,0 +1,14 @@
+[PAGE_CONTEXT]
+This page performs **one-way ANOVA** followed by **Tukey’s HSD post-hoc testing** on the metabolomics dataset.
+- One-way ANOVA tests whether **at least one group mean differs** across **three or more groups** of a selected metadata attribute.
+- ANOVA evaluates **between-group vs within-group variance**; it does not identify which groups differ.
+- When ANOVA is significant, **Tukey’s HSD** is used to compare **pairs of groups** while correcting for multiple comparisons.
+- Users select a **grouping attribute**, choose **≥3 groups** for ANOVA, and then select **exactly 2 groups** for Tukey’s comparison.
+- Results include:
+  - **ANOVA result table** with p-values and multiple-testing correction
+  - **ANOVA summary plot**
+  - **Metabolite-level boxplots** for interpretation
+  - **Tukey’s test statistic and volcano plots**
+  - **Tukey’s result table** for pairwise comparisons
+- These methods assume approximate **normality** and **homogeneous variances**; assumption checks should be considered before interpretation.
+[/PAGE_CONTEXT]

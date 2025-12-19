@@ -1,0 +1,10 @@
+[PAGE_CONTEXT]
+This page performs non-parametric group comparisons using Kruskal–Wallis and Dunn’s tests.
+- Kruskal–Wallis (KW) is a **non-parametric alternative to one-way ANOVA**.
+- KW tests whether **at least one of three or more groups differs** in distribution.
+- No assumptions of **normality or equal variances** are required.
+- Users select a metadata attribute and ≥3 groups for the KW test.
+- Significant KW results can be followed by **Dunn’s post-hoc test**.
+- Dunn’s test compares **exactly two selected groups** while correcting for multiple testing.
+- Outputs include **KW test statistic plots**, **result tables**, **metabolite boxplots**, and **Dunn’s comparison plots/tables**.
+[/PAGE_CONTEXT]

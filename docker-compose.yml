@@ -18,6 +18,8 @@ services:
       LETSENCRYPT_HOST: fbmn-statsguide.gnps2.org
       LETSENCRYPT_EMAIL: mwang87@gmail.com
       ENVIRONMENT_MODE: gnps
+    env_file:
+      - ./.env
 
 networks:
   nginx-net:

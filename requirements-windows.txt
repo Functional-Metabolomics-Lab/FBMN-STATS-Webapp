@@ -8,4 +8,5 @@ openpyxl
 scikit-posthocs
 scikit-bio
 scikit-learn
+openai
 git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git

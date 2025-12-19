@@ -3,7 +3,7 @@ import streamlit as st
 from src.common import *
 from src.testparametric import *
 
-page_setup()
+page_setup("Parametric_assumptions_evaluation")
 
 st.markdown("# Parametric Assumptions Evaluation")
 st.markdown("## Normal Distribution and Equal Variance")

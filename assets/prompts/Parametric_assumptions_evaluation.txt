@@ -1,0 +1,12 @@
+[PAGE_CONTEXT]
+This page evaluates **parametric test assumptions** for metabolomics data: **normality** and **equal variance**.
+- Designed to guide choice between **parametric** (t-test, ANOVA) and **non-parametric** tests.
+- Users select a **metadata attribute** and **two groups** for comparison.
+- **Normality** is assessed per feature using the **Shapiro–Wilk test**.
+- **Equal variance** is assessed using **Levene’s test**.
+- Results are shown as **histograms of p-values across features**:
+  - p > 0.05 → assumption likely satisfied
+  - p < 0.05 → assumption likely violated
+- If many features violate assumptions, **non-parametric tests** (Mann–Whitney U, Kruskal–Wallis) are recommended.
+- Outputs include **normality histogram**, **equal variance histogram**, and a **decision guide** for test selection.
+[/PAGE_CONTEXT]
