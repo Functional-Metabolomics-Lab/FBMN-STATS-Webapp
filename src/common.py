@@ -3,7 +3,7 @@ import pandas as pd
 import io
 import uuid
 import base64
-from src.chat import openaiassistantchat, openai4ochat
+from src.chat import openaiassistantchat, openai4ochat, gemini_chat
 
 dataframe_names = ("md",
                    "data",
@@ -102,7 +102,7 @@ def page_setup(page_name):
             clear_cache_button()
 
         with st.expander("💬 Chat", expanded=True):
-            openai4ochat()
+            gemini_chat()
             
         # Display two images side by side in the sidebar
         v_space(1)

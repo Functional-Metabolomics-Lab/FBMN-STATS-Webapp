@@ -1,5 +1,6 @@
 import streamlit as st
 from openai import OpenAI
+import google.generativeai as genai
 import os
 import time
 import json
@@ -20,6 +21,71 @@ def get_page_context():
     else:
         print(f"No page context file found for page: {page_context_file}")
         return None
+
+def gemini_chat():
+    # 1. Setup API Key
+    GEMINI_KEY = os.getenv("GOOGLEGEMINIAPI")
+    if not GEMINI_KEY:
+        st.error("Gemini API key not found. Please set the GOOGLEGEMINIAPI environment variable.")
+        return
+
+    genai.configure(api_key=GEMINI_KEY)
+
+    # 2. Reading preprompt/system instruction
+    try:
+        preprompt = open("./assets/prompts/preprompt.txt", "r").read()
+    except FileNotFoundError:
+        preprompt = "You are a helpful assistant."
+
+    # 3. Initialize model with System Instruction
+    model = genai.GenerativeModel(
+        model_name="gemini-2.5-flash",
+        system_instruction=preprompt
+    )
+
+    # 4. Initialize chat history in session state
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    first_message = "Hello, I am here to help you write your first statistical analysis!"
+    
+    # 5. Display chat messages (mapping "model" to "assistant" for UI icons)
+    for message in st.session_state.messages:
+        role = "assistant" if message["role"] == "model" else "user"
+        with st.chat_message(role):
+            st.markdown(message["parts"][0])
+
+    # 6. Accept user input
+    if prompt := st.chat_input(first_message):
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Handle page context if it exists
+        page_context = get_page_context()
+        full_prompt = f"Context: {page_context}\n\nUser Question: {prompt}" if page_context else prompt
+
+        # 7. Start Gemini Chat Session with existing history
+        # Gemini expects roles to be "user" and "model"
+        chat = model.start_chat(history=st.session_state.messages)
+
+        try:
+            # Send message and get response
+            response = chat.send_message(full_prompt)
+            assistant_response = response.text
+
+            # 8. Update Session State
+            # Note: Gemini storage format uses "parts"
+            st.session_state.messages.append({"role": "user", "parts": [full_prompt]})
+            st.session_state.messages.append({"role": "model", "parts": [assistant_response]})
+
+            # Display response
+            with st.chat_message("assistant"):
+                st.markdown(assistant_response)
+
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+
 
 def openai4ochat():
     # readng preprompt from disk
