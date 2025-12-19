@@ -25,15 +25,13 @@ def get_page_context(page):
         return None
 
 def gemini_chat():
-    # 1. Setup API Key
+    # Setup API Key
     GEMINI_KEY = os.getenv("GOOGLEGEMINIAPI")
     if not GEMINI_KEY:
         st.error("Gemini API key not found. Please set the GOOGLEGEMINIAPI environment variable.")
         return
 
-    client = genai.Client(api_key=GEMINI_KEY)
-
-    # 2. Reading preprompt
+    # Reading preprompt
     try:
         with open("./assets/prompts/preprompt.txt", "r") as f:
             preprompt = f.read()
@@ -66,11 +64,22 @@ def gemini_chat():
             tools=[grounding_tool]
         )
         
+        # Start client
+        client = st.session_state.get("gemini_client")
+        if not client:
+            print("Creating a new Gemini client...", flush=True)
+            client = genai.Client(api_key=GEMINI_KEY)
+            st.session_state["gemini_client"] = client
+
         # Start Gemini Chat Session
-        chat = client.chats.create(
-            model='gemini-2.5-flash',
-            config=config
-            )
+        chat = st.session_state.get("gemini_chat_instance")
+        if not chat:
+            print("Creating a new chat...", flush=True)
+            chat = client.chats.create(
+                model='gemini-2.5-flash',
+                config=config
+                )
+            st.session_state["gemini_chat_instance"] = chat
 
         try:
             # Construct the final prompt with context if available
@@ -83,10 +92,6 @@ def gemini_chat():
             # Update Session State
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-
-            # Display assistant response
-            # with st.chat_message("assistant"):
-            #     st.markdown(assistant_response)
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
