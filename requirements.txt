@@ -9,5 +9,5 @@ scikit-posthocs==0.11.4
 scikit-bio==0.6.3
 scikit-learn==1.7.0
 openai
-google-generativeai 
+google-genai
 git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git

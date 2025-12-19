@@ -101,8 +101,10 @@ def page_setup(page_name):
             v_space(1)
             clear_cache_button()
 
-        with st.expander("💬 Chat", expanded=True):
-            gemini_chat()
+        with st.container(height=750):
+            with st.expander("💬 Chat", expanded=True):
+                gemini_chat()
+                # openai4ochat()
             
         # Display two images side by side in the sidebar
         v_space(1)

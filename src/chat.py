@@ -1,12 +1,14 @@
 import streamlit as st
 from openai import OpenAI
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import os
 import time
 import json
 
-def get_page_context():
-    page = st.session_state.get("page")
+# Cache with st
+@st.cache_data(max_entries=50)
+def get_page_context(page):
 
     if not page:
         return None
@@ -29,62 +31,69 @@ def gemini_chat():
         st.error("Gemini API key not found. Please set the GOOGLEGEMINIAPI environment variable.")
         return
 
-    genai.configure(api_key=GEMINI_KEY)
+    client = genai.Client(api_key=GEMINI_KEY)
 
-    # 2. Reading preprompt/system instruction
+    # 2. Reading preprompt
     try:
-        preprompt = open("./assets/prompts/preprompt.txt", "r").read()
+        with open("./assets/prompts/preprompt.txt", "r") as f:
+            preprompt = f.read()
     except FileNotFoundError:
         preprompt = "You are a helpful assistant."
 
-    # 3. Initialize model with System Instruction
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        system_instruction=preprompt
-    )
-
-    # 4. Initialize chat history in session state
+    # Initialize chat history (Consistent with OpenAI format)
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
     first_message = "Hello, I am here to help you write your first statistical analysis!"
     
-    # 5. Display chat messages (mapping "model" to "assistant" for UI icons)
-    for message in st.session_state.messages:
-        role = "assistant" if message["role"] == "model" else "user"
-        with st.chat_message(role):
-            st.markdown(message["parts"][0])
 
-    # 6. Accept user input
+    # Accept user input
     if prompt := st.chat_input(first_message):
         # Display user message
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        # with st.chat_message("user"):
+        #     st.markdown(prompt)
 
-        # Handle page context if it exists
-        page_context = get_page_context()
-        full_prompt = f"Context: {page_context}\n\nUser Question: {prompt}" if page_context else prompt
+        # Handle page context
+        page_context = get_page_context(st.session_state.get("page"))
 
-        # 7. Start Gemini Chat Session with existing history
-        # Gemini expects roles to be "user" and "model"
-        chat = model.start_chat(history=st.session_state.messages)
+        grounding_tool = types.Tool(
+            google_search=types.GoogleSearch()
+        )
+
+
+        config = types.GenerateContentConfig(
+            system_instruction=preprompt,
+            tools=[grounding_tool]
+        )
+        
+        # Start Gemini Chat Session
+        chat = client.chats.create(
+            model='gemini-2.5-flash',
+            config=config
+            )
 
         try:
-            # Send message and get response
+            # Construct the final prompt with context if available
+            full_prompt = f"{page_context}\n\nUser Question: {prompt}" if page_context else prompt
+            
+            # Send message
             response = chat.send_message(full_prompt)
             assistant_response = response.text
 
-            # 8. Update Session State
-            # Note: Gemini storage format uses "parts"
-            st.session_state.messages.append({"role": "user", "parts": [full_prompt]})
-            st.session_state.messages.append({"role": "model", "parts": [assistant_response]})
+            # Update Session State
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.session_state.messages.append({"role": "assistant", "content": assistant_response})
 
-            # Display response
-            with st.chat_message("assistant"):
-                st.markdown(assistant_response)
+            # Display assistant response
+            # with st.chat_message("assistant"):
+            #     st.markdown(assistant_response)
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
+    for message in st.session_state.messages[::-1]:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
 
 def openai4ochat():
@@ -117,7 +126,7 @@ def openai4ochat():
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        page_context = get_page_context()
+        page_context = get_page_context(st.session_state.get("page"))
 
         if page_context:
             prompt_with_context = st.session_state.messages + \

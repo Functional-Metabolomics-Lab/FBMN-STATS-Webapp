@@ -9,5 +9,5 @@ scikit-posthocs
 scikit-bio
 scikit-learn
 openai
-google-generativeai 
+google-genai
 git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git
