@@ -62,7 +62,7 @@ def clear_cache_button():
 
         st.success("Cache cleared!")
 
-def page_setup(page_name):
+def page_setup(page_name, sidebar_chat=True):
     # streamlit configs
     st.set_page_config(
         page_title="Statistics for Metabolomics",
@@ -101,10 +101,11 @@ def page_setup(page_name):
             v_space(1)
             clear_cache_button()
 
-        with st.expander("💬 Chat", expanded=True):
-            with st.container(height=750):
-                gemini_chat()
-                # openai4ochat()
+        if sidebar_chat:
+            with st.expander("💬 Chat", expanded=True):
+                with st.container(height=750):
+                    gemini_chat()
+                    # openai4ochat()
             
         # Display two images side by side in the sidebar
         v_space(1)

@@ -24,7 +24,7 @@ def get_page_context(page):
         print(f"No page context file found for page: {page_context_file}")
         return None
 
-def gemini_chat():
+def gemini_chat(descending=False):
     # Setup API Key
     GEMINI_KEY = os.getenv("GOOGLEGEMINIAPI")
     if not GEMINI_KEY:
@@ -96,7 +96,11 @@ def gemini_chat():
         except Exception as e:
             st.error(f"An error occurred: {e}")
 
-    for message in st.session_state.messages[::-1]:
+    if descending:
+        messages = st.session_state.messages
+    else:
+        messages = st.session_state.messages[::-1]
+    for message in messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
