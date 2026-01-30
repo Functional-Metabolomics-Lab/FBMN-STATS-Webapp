@@ -1,0 +1,9 @@
+[PAGE_CONTEXT]
+This page shows a Principal Component Analysis (PCA) of the metabolomics dataset.
+- PCA is an **unsupervised** dimensionality reduction method.
+- Users can select **top principal components** (PCs) to visualize sample patterns.
+- Observed clustering reflects **variance in the data**, not predefined groups.
+- Users can filter samples by metadata attributes.
+- PCA cannot be performed with fewer than 3 samples.
+- Outputs include **PCA scores plot**, **explained variance (scree plot)**, and **principal component data table**.
+[/PAGE_CONTEXT]

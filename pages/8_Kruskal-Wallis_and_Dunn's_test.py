@@ -2,7 +2,7 @@ import streamlit as st
 from src.common import *
 from src.kruskal import *
 
-page_setup()
+page_setup("Kruskal-Wallis_and_Dunns_test")
 
 st.markdown("# Kruskal Wallis & Dunn's post hoc")
 

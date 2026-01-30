@@ -1,0 +1,10 @@
+[PAGE_CONTEXT]
+This page performs pairwise group comparisons using t-tests.
+- The t-test compares the **means of exactly two groups**.
+- Users select a metadata attribute and **two group levels** for comparison.
+- Supported tests include **Welch’s (default)**, **Student’s**, and **paired t-tests**.
+- Welch’s t-test does **not assume equal variances** and is recommended for most biological data.
+- Users can choose **two-sided or one-sided** alternative hypotheses.
+- Each metabolite is tested independently, with **FDR correction** applied across all metabolites.
+- Outputs include **feature significance plots**, **volcano plots**, **single-metabolite boxplots**, and a **results table**.
+[/PAGE_CONTEXT]

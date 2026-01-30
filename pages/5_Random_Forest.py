@@ -9,7 +9,7 @@ def clear_rf_outputs():
         if key in st.session_state:
             del st.session_state[key]
 
-page_setup()
+page_setup("Random_Forest")
 
 st.title("Random Forest")
 

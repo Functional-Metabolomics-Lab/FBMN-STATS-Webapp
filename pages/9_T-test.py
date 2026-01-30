@@ -4,7 +4,7 @@ import pandas as pd
 from src.common import *
 from src.ttest import *
 
-page_setup()
+page_setup('T-test')
 
 st.markdown("# T-test")
 

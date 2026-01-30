@@ -1,0 +1,10 @@
+[PAGE_CONTEXT]
+This page is used to upload and prepare metabolomics data for downstream analysis.
+- Users upload a **quantification table** containing feature intensities across samples.
+- A **metadata table** defines sample attributes (e.g., group, condition) used for statistical tests.
+- Optional inputs include **annotation tables** and **node pair tables** from GNPS workflows.
+- Data can be uploaded as **CSV, TSV, TXT, or Excel (XLSX)** files.
+- Example datasets and **GNPS / GNPS2 task IDs** can be used to load pre-generated data.
+- Basic data cleanup steps may include **removal of blank features**, **imputation of missing values**, and **scaling/centering**.
+- All subsequent statistical analyses use the processed data from this page.
+[/PAGE_CONTEXT]

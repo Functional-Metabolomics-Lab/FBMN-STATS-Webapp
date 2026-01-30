@@ -2,7 +2,7 @@ from src.common import *
 from src.anova import *
 
 
-page_setup()
+page_setup("One-way_ANOVA_and_Tukeys_test")
 
 st.markdown("# One-way ANOVA & Tukey's")
 

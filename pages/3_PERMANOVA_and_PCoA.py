@@ -4,7 +4,7 @@ from src.common import *
 try:
     from src.pcoa import *
 
-    page_setup()
+    page_setup("PERMANOVA_and_PCoA")
 
     st.markdown("# Multivariate Statistics")
     st.markdown("### PERMANOVA & Principal Coordinate Analysis (PCoA)")
