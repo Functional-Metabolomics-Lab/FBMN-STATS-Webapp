@@ -22,7 +22,6 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }} # Use the same version as the embeddable version
 
-
     - name: Setup python embeddable version
       run: |
         # Create a directory for the embeddable Python version

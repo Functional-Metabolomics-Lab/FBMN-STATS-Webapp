@@ -1,0 +1,30 @@
+[PAGE_CONTEXT]
+**Page Summary: Principal Component Analysis (PCA)**
+
+**Functionality:**
+This page conducts Principal Component Analysis (PCA), an unsupervised dimensionality-reduction technique used to simplify high-dimensional metabolomics data into fewer components (Principal Components or PCs). It projects samples into a 2D space based on Euclidean distance, helping users visualize patterns, clusters, and variance within the dataset.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to color-code the samples in the PCA plot (e.g., Treatment).
+- **Category Filter:** A subset of groups from the chosen attribute to be included in the analysis.
+- **Axes Selection (X/Y):** The specific Principal Components (e.g., PC1, PC2) to plot against each other. PC1 captures the most variance, PC2 the second most, and so on.
+
+**Advanced Filtering:**
+The Advanced Filtering section allows users to refine which samples are included in the PCA before it is run. Filtering is applied in three steps:
+1. **Attribute selection:** Choose a metadata column (e.g., Treatment, Timepoint) to filter by. This is the same attribute used to color-code the PCA plot.
+2. **Category selection:** A multiselect appears listing all unique groups within the chosen attribute. Deselecting a category excludes all of its samples from the analysis. At least one category must remain selected.
+3. **Sample selection:** For each selected category, a row of individual sample checkboxes (multiselect) is shown. Deselecting specific samples removes only those samples while keeping the rest of the category in the analysis.
+
+Changes made inside the Advanced Filtering section are **not applied immediately**. The user must click the **Done** button to commit the selections. Until Done is clicked, a warning banner indicates unsaved changes. Once applied, a confirmation banner shows the number of samples and categories currently included. If no samples are explicitly deselected, all samples in the selected categories are used.
+
+**Results:**
+- **PCA Scores Plot:** A scatter plot where each point represents a sample. Samples closer together are more similar in their metabolic profile.
+- **Explained Variance:** A bar chart showing the percentage of total variance explained by each Principal Component, helping assess how much information is captured by the first few axes.
+- **PCA Data Table:** A dataframe containing the calculated score values for each sample on each component.
+
+**Next potential pages**
+- PERMANOVA & PCoA: For further exploration of sample clustering and group differences based on distance metrics.
+- Hierarchical Clustering: To visualize sample relationships in a dendrogram and heatmap format.
+- Random Forest: For supervised analysis to identify features that differentiate between groups.
+- Parametric Assumptions Evaluation: To check if the data meets assumptions for parametric tests, which can inform the choice of statistical methods in later pages.
+[/PAGE_CONTEXT]

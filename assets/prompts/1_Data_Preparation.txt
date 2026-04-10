@@ -1,0 +1,33 @@
+[PAGE_CONTEXT]
+**Page Summary: Data Preparation**
+
+**Functionality:**
+This is the foundational step of the workflow. This page handles the import, cleaning, and preprocessing of metabolomics data. It allows users to load data from local files (Feature Quantification & Metadata tables) or directly from GNPS/GNPS2 using task IDs. Key preprocessing steps include cleaning metadata, removing background noise based on blank samples, imputing missing values, and normalizing feature intensities to ensure comparability across samples.
+
+**Parameters:**
+- **File Origin:** The source of the input data (e.g., Local Upload, GNPS FBMN Task ID, or built-in Example Data).
+    - Feature Quantification Table:
+    - Metadata Table:
+- **Blank Removal (Cleanup):**
+    - *Toggle:* Enables the filtering of features found in blank samples.
+    - *Cutoff:* The ratio of mean blank intensity to mean sample intensity. Features exceeding this threshold are considered background noise and removed.
+- **Imputation (Cleanup):**
+    - *Toggle:* Replaces missing values (zeros) with estimated low-abundance values (between 1 and the estimated Limit of Detection) to facilitate statistical tests that require non-zero data.
+- **Normalization Method:**
+    - *None:* Uses row intensities.
+    - *Center-Scaling:* Standardizes features to have zero mean and unit variance.
+    - *TIC (Total Ion Current):* Normalizes each sample so that the sum of feature intensities is constant (sample-centric).
+
+**Results:**
+- **Processed Dataframes:** The finalized *Feature Matrix* and *Metadata* tables are stored in the application state, ready for statistical analysis on subsequent pages.
+- **Summary Metrics:**
+    - Counts of features removed (background) or retained.
+    - Number of missing values imputed.
+- **Visualizations:**
+    - *Feature Intensity Frequency:* Histogram showing the distribution of intensity values across the dataset.
+    - *Missing Values Per Feature:* Histogram displaying how many samples are missing data for each feature.
+
+- **Future Use**
+    - The cleaned and normalized data will be used for all downstream analyses, including univariate and multivariate statistical tests, as well as visualizations on subsequent pages.
+    - Downloading the processed data allows users to save their cleaned datasets for use external use (like Cytoscape) or for re-uploading in future sessions.
+[/PAGE_CONTEXT]

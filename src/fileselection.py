@@ -278,7 +278,6 @@ def load_from_gnps2_cmn(task_id):
 def get_gnps_tables():
 
     ft = st.session_state.get("ft_gnps")
-    ft = st.session_state.get("ft_gnps")
     md = st.session_state.get("md_gnps")
     an = st.session_state.get("an_gnps")
     nw = st.session_state.get("nw_gnps")

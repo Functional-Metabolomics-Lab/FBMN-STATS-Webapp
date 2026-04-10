@@ -1,0 +1,37 @@
+[PAGE_CONTEXT]
+**Page Summary: Hierarchical Clustering & Heatmap**
+
+**Functionality:**
+This page performs Hierarchical Clustering Analysis (HCA), an unsupervised learning method, to group samples and features based on similarity. It visualizes the entire dataset using a clustered heatmap combined with a dendrogram, allowing users to identify global patterns, sample clusters, and co-varying metabolites without prior labeling.
+
+**Parameters:**
+- **Heatmap Color Palette:** A dropdown menu allowing users to select the color scheme (e.g., 'rainbow', 'viridis') for the heatmap intensities, ensuring accessibility and clarity.
+- **Interactive Zoom/Hover:** While not an input parameter, the tool supports dynamic interaction (zooming, hovering) to explore specific regions of large, dense heatmaps.
+
+**Advanced Filtering (Sample Filtering):**
+The Advanced Filtering section allows users to restrict which samples are included in the heatmap and clustering before they are run. Filtering is applied in three steps:
+1. **Attribute selection:** Choose a metadata column (e.g., Treatment, Timepoint) to filter by. This determines how samples are grouped for filtering purposes.
+2. **Category selection:** A multiselect appears listing all unique groups within the chosen attribute. Deselecting a category excludes all of its samples from the analysis. At least one category must remain selected.
+3. **Sample selection:** For each selected category, a row of individual sample checkboxes (multiselect) is shown. Deselecting specific samples removes only those samples while keeping the rest of the category in the analysis.
+
+Changes made inside the Advanced Filtering section are **not applied immediately**. The user must click the **Done** button to commit the selections. Until Done is clicked, a warning banner indicates unsaved changes. Once applied, a confirmation banner shows the number of samples and categories currently included.
+
+**Feature Filtering:**
+Above the heatmap, users can further narrow down which features (metabolites) are displayed using the following filters. All active filters are combined with AND logic:
+- **Name:** A text search that performs a case-insensitive partial match against feature labels (e.g., entering "1234" will match any feature whose label contains "1234").
+- **m/z min / m/z max:** Numeric range filters for the mass-to-charge ratio parsed from the feature label (format: `ID_mz@RT`). Only features within the specified m/z range are included.
+- **RT min / RT max:** Numeric range filters for the retention time parsed from the feature label. Only features within the specified RT range are included.
+
+A caption below the filters reports how many features are currently shown out of the total available. Hierarchical clustering requires at least 2 samples and 2 features after all filters are applied.
+
+**Results:**
+- **Clustered Heatmap:** A visual matrix where rows are metabolites and columns are samples (or vice versa, depending on orientation). 
+    - *Color Intensity:* Represents the abundance of each metabolite in each sample.
+    - *Clustering:* Rows and columns are reordered based on similarity, bringing similar profiles together.
+- **Dendrogram:** A tree-like diagram attached to the heatmap axes, illustrating the hierarchical relationship and distance between clusters of samples or features.
+- **Sorted Data Table:** A dataframe reflecting the reordered data used to generate the heatmap, which can be exported for further analysis.
+
+**Next potential pages**
+- Random Forest: For supervised analysis to identify features that differentiate between groups.
+- Parametric Assumptions Evaluation: To check if the data meets assumptions for parametric tests, which can inform the choice of statistical methods in later pages.
+[/PAGE_CONTEXT]

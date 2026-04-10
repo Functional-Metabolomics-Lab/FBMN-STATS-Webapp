@@ -1,0 +1,20 @@
+[PAGE_CONTEXT]
+**Page Summary: Friedman Test**
+
+**Functionality:**
+This page performs the Friedman test, a non-parametric alternative to repeated-measures one-way ANOVA, used to determine if there are statistically significant differences among three or more paired/matched groups. It is ideal for non-normal or heteroscedastic data from repeated-measures or matched designs.
+
+**When to use:**
+Use this test when you have three or more paired or matched groups (e.g., multiple time points on the same subjects, before/during/after treatment) and normality cannot be assumed. All groups must have the same number of samples because observations are compared in a paired fashion. Groups are automatically truncated to equal length if needed.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Timepoint, Condition).
+- **Groups for Friedman:** A multiselect option requiring at least three groups from the chosen attribute to be included in the omnibus Friedman test.
+- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR).
+
+**Results:**
+- **Friedman Results:**
+    - *Feature Significance Plot:* Scatter plot of log10(Chi²) vs. -log10(p) for all features.
+    - *Results Table:* Dataframe listing the chi-squared statistic, raw p-value, corrected p-value, and boolean significance for each feature.
+    - *Single Metabolite Boxplots:* Visual distribution of intensities for a selected metabolite across all groups included in the test.
+[/PAGE_CONTEXT]

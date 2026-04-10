@@ -4,6 +4,7 @@ from src.common import *
 from src.testparametric import *
 
 page_setup()
+st.session_state["current_page"] = "Parametric Assumptions Evaluation"
 
 st.markdown("# Parametric Assumptions Evaluation")
 st.markdown("## Normal Distribution and Equal Variance")
@@ -42,6 +43,11 @@ with st.expander("📖 Why is this important?"):
         💡 *Tip:*  
         If most bars are concentrated on the **right side (p > 0.05)** of both histograms, parametric tests like *Student's t-test* or *ANOVA* are suitable. If they cluster on the **left (p < 0.05)**, non-parametric tests such as *Kruskal–Wallis* or *Mann–Whitney U* are more appropriate.
 """)
+    
+with st.expander("📖 How to interpret the results?"):
+    st.info(
+            """💡 **Interpretation** In both tests low p-values indicate that data points for a feature are **NOT** normal distributed or have similar variance. To meet **parametric** criteria the p-values in the histograms should not be smaller than 0.05.When a larger number of data points indicate low p-values, it would be advisable to opt for a **non-parametric** statistical test. """ )
+    st.image("assets/figures/decision.png") 
 
 
 if st.session_state.data is not None and not st.session_state.data.empty:
@@ -73,19 +79,32 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         help="Select two options.",
     )
     if st.session_state.test_attribute and len(st.session_state.test_options) == 2:
-        tabs = st.tabs(["📊 Normal distribution (Shapiro-Wilk test)", "📊 Equal variance (Levene test)"])
-        with tabs[0]:
+        tab_normality, tab_variance = st.tabs(["📊 Normality Check", "📊 Equal Variance Check"])
+        with tab_normality:
             fig = test_normal_distribution(st.session_state.test_attribute, st.session_state.test_options, corrections_map[st.session_state.p_value_correction])
             if fig:
                 show_fig(fig, "test-normal-distribution")
-        with tabs[1]:
-            fig = test_equal_variance(st.session_state.test_attribute, st.session_state.test_options, corrections_map[st.session_state.p_value_correction])
-            show_fig(fig, "test-equal-variance")
+                st.session_state["pae_normality_fig"] = fig
 
-    with st.expander("📖 How to interpret the results?"):
-        st.info(
-                """💡 **Interpretation** In both tests low p-values indicate that data points for a feature are **NOT** normal distributed or have similar variance. To meet **parametric** criteria the p-values in the histograms should not be smaller than 0.05.When a larger number of data points indicate low p-values, it would be advisable to opt for a **non-parametric** statistical test. """ )
-        st.image("assets/figures/decision.png")  
+        with tab_variance:
+            @st.fragment
+            def equal_variance_section():
+                variance_test = st.radio(
+                    "Select equal variance test depending on Normality Check Results",
+                    options=["Levene test", "Bartlett test"],
+                    horizontal=True,
+                    help="Levene's test is robust to non-normality. Bartlett's test is more powerful when data are normally distributed.",
+                )
+                if variance_test == "Levene test":
+                    fig = test_equal_variance(st.session_state.test_attribute, st.session_state.test_options, corrections_map[st.session_state.p_value_correction])
+                    show_fig(fig, "test-equal-variance")
+                    st.session_state["pae_variance_fig"] = fig
+                else:
+                    fig = test_equal_variance_bartlett(st.session_state.test_attribute, st.session_state.test_options, corrections_map[st.session_state.p_value_correction])
+                    show_fig(fig, "test-equal-variance-bartlett")
+                    st.session_state["pae_variance_fig"] = fig
+
+            equal_variance_section()
         
 else:
     st.warning("⚠️ Please complete data preparation step first!")

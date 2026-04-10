@@ -5,6 +5,7 @@ from src.fileselection import *
 from src.cleanup import *
 
 page_setup()
+st.session_state["current_page"] = "Data Preparation"
  
 st.markdown("# File Selection")
 

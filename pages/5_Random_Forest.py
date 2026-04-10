@@ -2,6 +2,7 @@ import streamlit as st
 
 from src.common import *
 from src.randomforest import *
+
 def clear_rf_outputs():
     for key in [
         'df_oob', 'df_important_features', 'log', 'class_report', 'label_mapping',
@@ -10,6 +11,7 @@ def clear_rf_outputs():
             del st.session_state[key]
 
 page_setup()
+st.session_state["current_page"] = "Random Forest"
 
 st.title("Random Forest")
 
@@ -100,7 +102,17 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state.data = data_filtered
             st.session_state.md = md_filtered
 
-            df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy = run_random_forest(st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed)
+            import time
+            progress_placeholder = st.empty()
+            time_placeholder = st.empty()
+            start_time = time.time()
+            def progress_callback(done, total, est_left):
+                progress = done / total
+                progress_placeholder.progress(progress, text=f"Running Random Forest: {done}/{total}")
+                time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+            df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy = run_random_forest(st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed, _progress_callback=progress_callback)
+            progress_placeholder.empty()
+            time_placeholder.empty()
             st.session_state['df_oob'] = df_oob
             st.session_state['df_important_features'] = df_important_features
             st.session_state['log'] = log
@@ -125,9 +137,29 @@ if ('df_important_features' in st.session_state and st.session_state.df_importan
                     "📋 Classification Report",
                     "🔍 Confusion Matrix"])
     with tabs[0]:
+        with st.expander("ℹ️ About OOB Error"):
+            st.markdown("""
+The **Out-of-Bag (OOB) error** estimates how well the Random Forest generalizes to unseen data.  
+Each tree is trained on a bootstrap sample, and the OOB error is computed using the samples 
+*not* included in that bootstrap (the "out-of-bag" samples).
+
+- If the error curve **flattens**, the model has enough trees.  
+- If it's still **decreasing**, consider increasing the number of trees.  
+- A sudden **increase** may indicate instability with very few trees.
+            """)
         fig = get_oob_fig(st.session_state.df_oob)
         show_fig(fig, "oob-error")
+        st.session_state["page_figs_rf_oob"] = fig
     with tabs[1]:
+        with st.expander("ℹ️ About Gini Feature Importance"):
+            st.markdown("""
+**Gini importance** (Mean Decrease in Impurity) measures how much each feature contributes 
+to reducing impurity across all trees in the forest.
+
+- Features with **higher importance** are more influential in splitting the data into distinct groups.  
+- Gini importance can be **biased toward high-cardinality features** (features with many unique values).  
+- Importance values sum to 1.0 across all features.
+            """)
         df_imp = st.session_state.df_important_features.copy()
         def sci_notation_or_plain(x):
             try:
@@ -147,6 +179,18 @@ if ('df_important_features' in st.session_state and st.session_state.df_importan
         else:
             st.dataframe(df_imp, use_container_width=True)
     with tabs[2]:  # Classification Report
+        with st.expander("ℹ️ About Classification Report"):
+            st.markdown("""
+The **Classification Report** summarizes the model's prediction quality for each class:
+
+- **Precision** — of all samples predicted as class X, how many truly belong to class X?  
+- **Recall** — of all true class X samples, how many were correctly predicted?  
+- **F1-score** — harmonic mean of precision and recall; balances both metrics.  
+- **Support** — number of true samples in each class.
+
+High precision + low recall = *conservative* (few false positives, but misses true cases).  
+High recall + low precision = *aggressive* (catches most cases, but with false alarms).
+            """)
         if 'log' in st.session_state:
             st.subheader("Log Messages")
             st.text(st.session_state.log)
@@ -168,10 +212,21 @@ if ('df_important_features' in st.session_state and st.session_state.df_importan
             merged_df.set_index('Label', inplace=True)
             st.dataframe(merged_df)
     with tabs[3]:
-        st.subheader("Test Set Confusion Matrix")
-        st.dataframe(st.session_state.test_confusion_df)
-        st.write(f"Test Set Accuracy: {st.session_state.test_accuracy:.2%}")
+        with st.expander("ℹ️ About Confusion Matrix"):
+            st.markdown("""
+A **Confusion Matrix** shows how many samples were classified correctly vs. incorrectly for each class.
 
+- **Diagonal values** = correct predictions (true positives for each class).  
+- **Off-diagonal values** = misclassifications.  
+- The **Test Set** matrix reflects generalization to unseen data (80/20 split).  
+- The **Training Set** matrix shows how well the model fits the training data.  
+
+If training accuracy is much higher than test accuracy, the model may be **overfitting**.
+            """)
         st.subheader("Train Set Confusion Matrix")
         st.dataframe(st.session_state.train_confusion_df)
         st.write(f"Train Set Accuracy: {st.session_state.train_accuracy:.2%}")
+
+        st.subheader("Test Set Confusion Matrix")
+        st.dataframe(st.session_state.test_confusion_df)
+        st.write(f"Test Set Accuracy: {st.session_state.test_accuracy:.2%}")

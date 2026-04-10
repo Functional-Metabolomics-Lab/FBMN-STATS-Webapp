@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from scipy.stats import kruskal
 from scipy import stats
 import scikit_posthocs as sp
+from src.utils import get_feature_name_map
 
 def gen_kruskal_data(group_data, _progress_callback=None):
     total = len(group_data[0].columns)
@@ -50,20 +51,8 @@ def kruskal_wallis(df, attribute, correction, elements, _progress_callback=None)
     df = df[df["metabolite"] != attribute]
     return df
 
-def _get_feature_name_map():
-    """Return a mapping metabolite_id -> feature name. Look for common name columns
-    in st.session_state.ft_gnps. If nothing found, return None."""
-    ft = st.session_state.get("ft_gnps", pd.DataFrame())
-    if ft is None or ft.empty:
-        return None
-    candidates = ["metabolite_name", "name", "feature_name", "compound_name", "compound"]
-    for c in candidates:
-        if c in ft.columns:
-            return ft[c].to_dict()
-    return None
-
 @st.cache_resource
-def get_kruskal_plot(kruskal):
+def get_kruskal_plot(kruskal, color_by=None):
     # Only count unique, valid metabolite names (not NaN, not attribute name)
     kruskal_clean = kruskal[kruskal["metabolite"].notna()].copy()
     if "kruskal_attribute" in st.session_state:
@@ -108,16 +97,34 @@ def get_kruskal_plot(kruskal):
         hovertemplate="%{text}",
         showlegend=True
     ))
-    fig.add_trace(go.Scatter(
-        x=safe_log10_series(sig["statistic"]),
-        y=safe_neglog10p(sig["p"]),
-        mode="markers",
-        marker=dict(color="#ef553b"),
-        name="significant",
-        text=sig["metabolite"],
-        hovertemplate="%{text}",
-        showlegend=True
-    ))
+    if color_by is not None:
+        from src.utils import compute_dominant_groups
+        dominant_map, all_groups = compute_dominant_groups(list(sig["metabolite"]), color_by)
+        colors = px.colors.qualitative.Plotly
+        for gi, group in enumerate(all_groups):
+            group_sig = sig[sig["metabolite"].map(lambda m, g=group: dominant_map.get(m) == g)]
+            if not group_sig.empty:
+                fig.add_trace(go.Scatter(
+                    x=safe_log10_series(group_sig["statistic"]),
+                    y=safe_neglog10p(group_sig["p"]),
+                    mode="markers",
+                    marker=dict(color=colors[gi % len(colors)]),
+                    name=f"{group}",
+                    text=group_sig["metabolite"],
+                    hovertemplate="%{text}",
+                    showlegend=True
+                ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=safe_log10_series(sig["statistic"]),
+            y=safe_neglog10p(sig["p"]),
+            mode="markers",
+            marker=dict(color="#ef553b"),
+            name="significant",
+            text=sig["metabolite"],
+            hovertemplate="%{text}",
+            showlegend=True
+        ))
 
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
@@ -145,16 +152,7 @@ def get_metabolite_boxplot(kruskal, metabolite):
         df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
 
     # Get metabolite name from feature map if available
-    def _get_feature_name_map():
-        ft = st.session_state.get("ft_gnps", pd.DataFrame())
-        if ft is None or ft.empty:
-            return None
-        candidates = ["metabolite_name", "name", "feature_name", "compound_name", "compound"]
-        for c in candidates:
-            if c in ft.columns:
-                return ft[c].to_dict()
-        return None
-    feature_map = _get_feature_name_map()
+    feature_map = get_feature_name_map()
     metabolite_name = feature_map.get(metabolite, metabolite) if feature_map else metabolite
     df["metabolite_name"] = metabolite_name
 
@@ -251,21 +249,14 @@ def dunn(df, attribute, elements, correction, _progress_callback=None):
             continue
 
         # run Dunn for this single metabolite (two groups)
-        if correction and correction.lower() != "none":
-            dunn_result = sp.posthoc_dunn(
-                a=filtered_df,
-                val_col=metabolite,
-                group_col=attribute,
-                p_adjust=correction,   # e.g. 'fdr_bh'
-                sort=True,
-            )
-        else:
-            dunn_result = sp.posthoc_dunn(
-                a=filtered_df,
-                val_col=metabolite,
-                group_col=attribute,
-                sort=True,
-            )
+        # Don't apply per-metabolite p_adjust here; global correction
+        # is applied afterward via add_p_value_correction_to_dunns()
+        dunn_result = sp.posthoc_dunn(
+            a=filtered_df,
+            val_col=metabolite,
+            group_col=attribute,
+            sort=True,
+        )
         
         # extract the p-value for this exact contrast
         if gA in dunn_result.index and gB in dunn_result.columns:
@@ -384,10 +375,10 @@ def add_p_value_correction_to_dunns(dunn, correction):
 
 def _get_dunn_feature_map(df_dunn):
     """Look up feature name mapping for stats_metabolite similar to kruskal."""
-    return _get_feature_name_map()
+    return get_feature_name_map()
 
 @st.cache_resource
-def get_dunn_teststat_plot(df):
+def get_dunn_teststat_plot(df, color_by=None):
     feature_map = _get_dunn_feature_map(df)
     fig = go.Figure()
 
@@ -442,20 +433,40 @@ def get_dunn_teststat_plot(df):
     # Significant points
     sig = df_numeric[df_numeric[sig_col] == True]
     if not sig.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=sig[diff_col],
-                y=sig["neglog10p"],
-                mode="markers+text",
-                marker=dict(color="#ef553b"),
-                text=["" for _ in sig[met_col]],
-                textposition="top right",
-                textfont=dict(color="#ef553b", size=12),
-                name="significant",
-                hovertext=make_hovertext(sig[met_col]),
-                hoverinfo="text",
+        if color_by is not None:
+            from src.utils import compute_dominant_groups
+            dominant_map, all_groups = compute_dominant_groups(list(sig[met_col]), color_by)
+            colors = px.colors.qualitative.Plotly
+            for gi, group in enumerate(all_groups):
+                group_mask = sig[met_col].map(lambda m, g=group: dominant_map.get(m) == g)
+                group_sig = sig[group_mask]
+                if not group_sig.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=group_sig[diff_col],
+                            y=group_sig["neglog10p"],
+                            mode="markers",
+                            marker=dict(color=colors[gi % len(colors)]),
+                            name=f"{group}",
+                            hovertext=make_hovertext(group_sig[met_col]),
+                            hoverinfo="text",
+                        )
+                    )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=sig[diff_col],
+                    y=sig["neglog10p"],
+                    mode="markers+text",
+                    marker=dict(color="#ef553b"),
+                    text=["" for _ in sig[met_col]],
+                    textposition="top right",
+                    textfont=dict(color="#ef553b", size=12),
+                    name="significant",
+                    hovertext=make_hovertext(sig[met_col]),
+                    hoverinfo="text",
+                )
             )
-        )
 
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},

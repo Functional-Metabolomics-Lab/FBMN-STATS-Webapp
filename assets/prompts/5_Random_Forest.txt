@@ -1,0 +1,23 @@
+[PAGE_CONTEXT]
+**Page Summary: Random Forest (Supervised Learning)**
+
+**Functionality:**
+This page implements a Random Forest (RF) classifier, a supervised machine learning algorithm. Its purpose is to train a model that predicts sample groups based on metabolic features and, in doing so, determines which features (metabolites) are most important for distinguishing between those groups. It is useful for both predictive modeling and feature selection.
+
+**Parameters:**
+- **Random Seed:** A checkbox to toggle the use of a fixed random seed (123) for reproducible results.
+- **Attribute:** A categorical column from the metadata selected by the user to serve as the target variable (labels) for classification.
+- **Included Categories:** A selection of specific groups from the attribute to be included in the model (requires at least 2).
+- **Number of Trees:** A numeric input (1-500) determining the number of estimators (trees) in the forest. More trees can improve stability but increase computation time.
+
+**Results:**
+- **OOB Error Plot:** A line chart showing the Out-of-Bag (OOB) error rate as the number of trees increases, helping the user determine the optimal forest size.
+- **Feature Importance Table:** A dataframe ranking metabolites by their contribution ("importance") to the model's predictive power.
+- **Classification Report:** A detailed table providing precision, recall, F1-score, and support for each class, derived from the test set predictions.
+- **Confusion Matrices:**
+    - *Test Set Matrix:* Shows the model's performance on unseen data.
+    - *Train Set Matrix:* Shows the model's performance on the training data, useful for checking overfitting.
+
+**Next potential pages**
+- Parametric Assumptions Evaluation: To check if the data meets assumptions for parametric tests, which can inform the choice of statistical methods in later pages.
+[/PAGE_CONTEXT]

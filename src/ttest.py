@@ -39,30 +39,13 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
         # Calculate t-test
         result = pg.ttest(group1, group2, paired, alternative, correction=correction_param)
 
-        # Determine which test was *actually* used for DF calculation
-        was_welch = False
+        # Label which test type was used
         if correction_param == True:
-            was_welch = True
-
-        # Calculate degrees of freedom
-        if was_welch:
-            # Welch's df calculation
-            s1 = np.var(group1, ddof=1)
-            s2 = np.var(group2, ddof=1)
-            numerator = (s1/n1 + s2/n2)**2
-            denominator = ((s1/n1)**2)/(n1-1) + ((s2/n2)**2)/(n2-1)
-            df_welch = numerator / denominator if denominator != 0 else np.nan
-            result["df"] = df_welch
             result["ttest_type"] = "Welch"
+        elif paired:
+            result["ttest_type"] = "Paired Student"
         else:
-            # Student's t-test df
-            # For paired test, df is n-1
-            if paired:
-                result["df"] = n1 - 1
-                result["ttest_type"] = "Paired Student"
-            else:
-                result["df"] = n1 + n2 - 2
-                result["ttest_type"] = "Student"
+            result["ttest_type"] = "Student"
         
         result["metabolite"] = col
         result["mean(A)"] = mean1
@@ -82,7 +65,7 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
     ttest.insert(8, "p-corrected", pg.multicomp(ttest["p-val"].astype(float), method=p_correction)[1])
     # add significance
     ttest.insert(9, "significance", ttest["p-corrected"] < 0.05)
-    ttest.insert(10, "st.session_state.ttest_attribute", ttest_attribute)
+    ttest.insert(10, "attribute", ttest_attribute)
     ttest.insert(11, "A", target_groups[0])
     ttest.insert(12, "B", target_groups[1])
 
@@ -108,7 +91,7 @@ def _clean_ttest_dataframe(df):
             df[col] = df[col].astype(bool)
     
     # Ensure string columns are proper string types
-    str_cols = ["ttest_type", "st.session_state.ttest_attribute", "A", "B"]
+    str_cols = ["ttest_type", "attribute", "A", "B"]
     for col in str_cols:
         if col in df.columns:
             df[col] = df[col].astype(str)
@@ -117,7 +100,7 @@ def _clean_ttest_dataframe(df):
 
 
 @st.cache_resource
-def plot_ttest(df):
+def plot_ttest(df, color_by=None):
 
     # Use the correct t-statistic column name from pingouin output
     t_col = None
@@ -133,7 +116,21 @@ def plot_ttest(df):
     # Add a column for -log(p-corrected) and significance label
     df = df.copy()
     df["-log_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log(x + 1e-300)) # Add epsilon
-    df["sig_label"] = df["significance"].apply(lambda x: "significant" if x else "insignificant")
+    if color_by is not None:
+        from src.utils import compute_dominant_groups
+        sig_mets = list(df[df["significance"]].index)
+        dominant_map, all_groups = compute_dominant_groups(sig_mets, color_by)
+        df["sig_label"] = df.apply(
+            lambda row: dominant_map.get(row.name, "insignificant") if row["significance"] else "insignificant",
+            axis=1
+        )
+        colors = px.colors.qualitative.Plotly
+        _color_map = {"insignificant": "#696880"}
+        for i, g in enumerate(all_groups):
+            _color_map[g] = colors[i % len(colors)]
+    else:
+        df["sig_label"] = df["significance"].apply(lambda x: "significant" if x else "insignificant")
+        _color_map = {"significant": "#ef553b", "insignificant": "#696880"}
     df["metabolite_name"] = df.index
 
 
@@ -146,7 +143,7 @@ def plot_ttest(df):
         x=t_col,
         y="-log_p_corrected",
         color="sig_label",
-        color_discrete_map={"significant": "#ef553b", "insignificant": "#696880"},
+        color_discrete_map=_color_map,
         custom_data=["metabolite_name"],
         template="plotly_white",
         width=600,

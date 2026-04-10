@@ -1,0 +1,30 @@
+[PAGE_CONTEXT]
+**Page Summary: Wilcoxon Signed-Rank Test**
+
+**Functionality:**
+This page conducts the Wilcoxon signed-rank test, the non-parametric equivalent of the paired t-test, for comparing two paired or matched sample groups. It is designed for metabolomics data where normality cannot be assumed. FDR correction is applied to handle the multiple testing problem arising from testing all metabolites simultaneously.
+
+**When to use:**
+Use this test when samples are paired or matched (e.g., before vs. after treatment, same subject measured twice, matched case-control designs) and normality cannot be assumed. Both groups must have the same number of samples because observations are compared pair-wise.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Treatment, Timepoint).
+- **Comparison Options:** Two specific groups selected from the chosen attribute. Both groups must have the same number of samples (paired design).
+- **Alternative Hypothesis:**
+    - *Two-sided:* Tests for difference in any direction.
+    - *Greater/Less:* Directional tests (Group A > Group B or A < B).
+- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR).
+
+**Results:**
+- **Results Table:** A dataframe containing the W-statistic, raw p-value, corrected p-value (FDR), rank-biserial correlation (RBC), common language effect size (CLES), group medians, and statistical significance indicators.
+- **Feature Significance Plot:** A scatter plot of the W-statistic vs. -Log(corrected p-value), highlighting significant metabolites in red and insignificant ones in grey.
+- **Single Metabolite Boxplots:** Visualization of intensity distributions for individual user-selected metabolites across the two paired groups, with the corrected p-value shown in the title.
+
+**Key output column definitions:**
+- W-val: Wilcoxon W statistic (sum of positive signed ranks).
+- p-val: Raw p-value from the test.
+- RBC: Rank-biserial correlation (effect size, −1 to +1; |0.1| small, |0.3| medium, |0.5| large).
+- CLES: Common language effect size (probability that a random observation from A exceeds one from B).
+- p-corrected: FDR-adjusted p-value accounting for multiple comparisons across all metabolites.
+- significance: Boolean flag whether p-corrected < 0.05.
+[/PAGE_CONTEXT]

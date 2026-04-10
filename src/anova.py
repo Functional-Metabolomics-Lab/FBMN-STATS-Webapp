@@ -5,6 +5,7 @@ import pingouin as pg
 import plotly.express as px
 import plotly.graph_objects as go
 import time
+from src.utils import get_feature_name_map
 
 if 'name_column' not in st.session_state:
     st.session_state['name_column'] = None
@@ -118,22 +119,10 @@ def anova(df, attribute, correction, elements, _progress_callback=None):
     df_res = add_p_correction_to_anova(df_res, correction)
     return df_res.set_index("metabolite")
 
-def _get_feature_name_map():
-    """Return a mapping metabolite_id -> feature name. Look for common name columns
-    in st.session_state.ft_gnps. If nothing found, return None."""
-    ft = st.session_state.get("ft_gnps", pd.DataFrame())
-    if ft is None or ft.empty:
-        return None
-    candidates = ["metabolite_name", "name", "feature_name", "compound_name", "compound"]
-    for c in candidates:
-        if c in ft.columns:
-            return ft[c].to_dict()
-    return None
-
-@st.cache_resource(show_spinner="Creating ANOVA plots...")
-def get_anova_plot(anova):
+@st.cache_resource(show_spinner="Creating ANOVA plot...")
+def get_anova_plot(anova, color_by=None):
     """ANOVA scatter: x=log(F), y=-log(p). Add hover text with feature name if available."""
-    feature_map = _get_feature_name_map()
+    feature_map = get_feature_name_map()
     
 
     def create_hovertexts(indexes):
@@ -170,17 +159,36 @@ def get_anova_plot(anova):
 
     sig = anova[anova["significant"] == True]
     if not sig.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=np.log(sig["F"]),
-                y=-np.log(sig["p"]),
-                mode="markers",
-                marker=dict(color="#ef553b"),
-                name="significant",
-                hovertext=create_hovertexts(sig.index),
-                hoverinfo="text",
+        if color_by is not None:
+            from src.utils import compute_dominant_groups
+            dominant_map, all_groups = compute_dominant_groups(list(sig.index), color_by)
+            colors = px.colors.qualitative.Plotly
+            for gi, group in enumerate(all_groups):
+                group_sig = sig[sig.index.map(lambda m, g=group: dominant_map.get(m) == g)]
+                if not group_sig.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=np.log(group_sig["F"]),
+                            y=-np.log(group_sig["p"]),
+                            mode="markers",
+                            marker=dict(color=colors[gi % len(colors)]),
+                            name=f"{group}",
+                            hovertext=create_hovertexts(group_sig.index),
+                            hoverinfo="text",
+                        )
+                    )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=np.log(sig["F"]),
+                    y=-np.log(sig["p"]),
+                    mode="markers",
+                    marker=dict(color="#ef553b"),
+                    name="significant",
+                    hovertext=create_hovertexts(sig.index),
+                    hoverinfo="text",
+                )
             )
-        )
 
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
@@ -222,7 +230,7 @@ def get_metabolite_boxplot(anova, metabolite):
     if df.columns[0] == "filename" and st.session_state.data.index.name:
         df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
 
-    feature_map = _get_feature_name_map()
+    feature_map = get_feature_name_map()
     metabolite_name = feature_map.get(metabolite, metabolite) if feature_map else metabolite
     df["metabolite_name"] = metabolite_name
 
@@ -365,10 +373,10 @@ def add_p_value_correction_to_tukeys(tukey, correction):
 
 def _get_tukey_feature_map(df_tukey):
     """Look up feature name mapping for stats_metabolite similar to anova."""
-    return _get_feature_name_map()
+    return get_feature_name_map()
 
 @st.cache_resource(show_spinner="Creating Tukey test statistic plots...")
-def get_tukey_teststat_plot(df):
+def get_tukey_teststat_plot(df, color_by=None):
     """Plot the test-statistic/diff (existing behaviour) but add hover text."""
     feature_map = _get_tukey_feature_map(df)
     fig = go.Figure()
@@ -402,20 +410,41 @@ def get_tukey_teststat_plot(df):
     sig = df[df["significant"] == True]
     if not sig.empty:
         sig_numeric = p_numeric[sig.index]
-        fig.add_trace(
-            go.Scatter(
-                x=sig["diff"],
-                y=-np.log(sig_numeric.astype(float)),
-                mode="markers+text",
-                marker=dict(color="#ef553b"),
-                text=["" for _ in sig["metabolite"]],
-                textposition="top right",
-                textfont=dict(color="#ef553b", size=12),
-                name="significant",
-                hovertext=make_hovertext(sig["metabolite"]),
-                hoverinfo="text",
+        if color_by is not None:
+            from src.utils import compute_dominant_groups
+            dominant_map, all_groups = compute_dominant_groups(list(sig["metabolite"]), color_by)
+            colors = px.colors.qualitative.Plotly
+            for gi, group in enumerate(all_groups):
+                group_mask = sig["metabolite"].map(lambda m, g=group: dominant_map.get(m) == g)
+                group_sig = sig[group_mask]
+                if not group_sig.empty:
+                    group_sig_p = sig_numeric[group_sig.index]
+                    fig.add_trace(
+                        go.Scatter(
+                            x=group_sig["diff"],
+                            y=-np.log(group_sig_p.astype(float)),
+                            mode="markers",
+                            marker=dict(color=colors[gi % len(colors)]),
+                            name=f"{group}",
+                            hovertext=make_hovertext(group_sig["metabolite"]),
+                            hoverinfo="text",
+                        )
+                    )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=sig["diff"],
+                    y=-np.log(sig_numeric.astype(float)),
+                    mode="markers+text",
+                    marker=dict(color="#ef553b"),
+                    text=["" for _ in sig["metabolite"]],
+                    textposition="top right",
+                    textfont=dict(color="#ef553b", size=12),
+                    name="significant",
+                    hovertext=make_hovertext(sig["metabolite"]),
+                    hoverinfo="text",
+                )
             )
-        )
 
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},

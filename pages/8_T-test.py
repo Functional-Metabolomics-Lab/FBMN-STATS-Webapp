@@ -5,6 +5,7 @@ from src.common import *
 from src.ttest import *
 
 page_setup()
+st.session_state["current_page"] = "T-test"
 
 st.markdown("# T-test")
 
@@ -108,6 +109,9 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         on_change=clear_ttest_data
     )
 
+    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+    st.selectbox("Color significant points by", options=color_by_options, key="ttest_color_by")
+
     if c1.button("Run t-test", type="primary", disabled=(len(st.session_state.ttest_options) != 2)):
         # Map label to value for correction
         correction_value = correction_options[st.session_state.ttest_correction_label]
@@ -142,14 +146,17 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         tabs = st.tabs(["📈 Feature significance", "📈 Volcano plot", "📊 Single metabolite plots", "📁 Data"])
 
         with tabs[0]:
-            fig = plot_ttest(df)
+            _ttest_color = st.session_state.get("ttest_color_by", "Significance (default)")
+            fig = plot_ttest(df, color_by=None if _ttest_color == "Significance (default)" else _ttest_color)
             show_fig(fig, "t-test")
+            st.session_state["page_figs_ttest_sig"] = fig
 
         with tabs[1]:
             # Volcano Plot tab 
             if "mean(A)" in df.columns and "mean(B)" in df.columns:
                 fig_volcano = get_ttest_volcano_plot(df)
                 show_fig(fig_volcano, "ttest-volcano")
+                st.session_state["page_figs_ttest_volcano"] = fig_volcano
             else:
                 st.warning("Could not generate volcano plot. Mean values are missing from t-test results. Please re-run the t-test.")
 
@@ -165,6 +172,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 fig = ttest_boxplot(df, st.session_state.ttest_metabolite)
                 if fig is not None:
                     show_fig(fig, f"ttest-boxplot-{st.session_state.ttest_metabolite}", container_width=True)
+                    st.session_state["page_figs_ttest_boxplot"] = fig
             else:
                 st.warning(f"Selected metabolite not found in data columns. Please select a valid metabolite.")
 

@@ -9,3 +9,6 @@ scikit-posthocs==0.11.4
 scikit-bio==0.6.3
 scikit-learn==1.7.0
 git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git
+python-dotenv==1.0.1
+requests
+base64
