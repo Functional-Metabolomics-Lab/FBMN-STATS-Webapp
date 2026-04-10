@@ -1,0 +1,20 @@
+[PAGE_CONTEXT]
+**Page Summary: Mann-Whitney U Test (MWU)**
+
+**Functionality:**
+This page facilitates the Mann-Whitney U test, a non-parametric statistical method for comparing differences between two independent groups. It is specifically designed for analyzing metabolomics data where variables (metabolites) may not follow a normal distribution or are ordinal. The tool identifies features that statistically differ between two chosen conditions.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Treatment, Genotype).
+- **Comparison Options:** Two specific groups selected from the chosen attribute to be compared against each other (e.g., "Control" vs. "Treatment A").
+- **Alternative Hypothesis:**
+    - *Two-sided:* Tests if the distributions of the two groups differ.
+    - *Greater:* Tests if the first group is stochastically greater than the second.
+    - *Less:* Tests if the first group is stochastically less than the second.
+- **P-value Correction:** The method selected (globally) to adjust p-values for multiple comparisons (e.g., Benjamini-Hochberg FDR), crucial for high-dimensional metabolomics data.
+
+**Results:**
+- **Results Table:** A comprehensive dataframe listing each feature with its U-statistic, raw p-value, corrected p-value (FDR), means for both groups, and a boolean significance indicator.
+- **Feature Significance Plot:** A scatter plot visualizing the relationship between the U-statistic and significance (-log10 of corrected p-value), differentiating significant features by color.
+- **Single Metabolite Boxplots:** Detailed boxplots for individual metabolites selected by the user, showing the intensity distribution and statistical significance between the two groups.
+[/PAGE_CONTEXT]

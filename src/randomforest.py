@@ -3,25 +3,17 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 from sklearn.preprocessing import OrdinalEncoder
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils import class_weight
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix, accuracy_score
 
-def run_random_forest(attribute, n_trees, random_seed=None):
+def run_random_forest(attribute, n_trees, random_seed=None, _progress_callback=None):
     # initialize a log to print out in the app later
     log = ""
 
-    df_oob = pd.DataFrame()  # Placeholder
-    df_important_features = pd.DataFrame()  # Placeholder
-
-    # Placeholder for classification report and label mapping
-    class_report = "Classification report here"
-    label_mapping = "Label mapping here"
-
     labels = st.session_state.md[[attribute]]
-    rf_data = pd.concat([st.session_state.data, labels], axis=1)
 
     # Check for NaN in labels (y)
     if labels.isnull().values.any():
@@ -33,27 +25,30 @@ def run_random_forest(attribute, n_trees, random_seed=None):
     labels = enc.fit_transform(labels)
     labels = np.array([x[0] + 1 for x in labels])
 
-    class_names = enc.categories_[0] #getting the class names
+    class_names = [str(c).strip() for c in enc.categories_[0]]
 
     # Extract the feature intensities as np 2D array
     features = np.array(st.session_state.data)
 
     # Determine the smallest class size and adjust test_size accordingly
     unique, counts = np.unique(labels, return_counts=True)
-    min_class_count = min(counts)
     min_test_size = float(len(unique)) / len(labels)
 
     # Adjust test size to be larger of the calculated min_test_size or the initial_test_size
-    adjusted_test_size = max(min_test_size, 0.25)
+    adjusted_test_size = max(min_test_size, 0.20)
     
     train_features, test_features, train_labels, test_labels = train_test_split(
-        features, labels, test_size= adjusted_test_size, random_state=random_seed, stratify=labels)
+        features, labels, test_size=adjusted_test_size, random_state=random_seed, stratify=labels)
 
     # Collecting info about feature and label shapes for logging
+    log += f"Class names: {', '.join(class_names)}\n"
+    log += f"Train/Test split: {1 - adjusted_test_size:.0%} / {adjusted_test_size:.0%}\n"
     log += f"Training Features Shape: {train_features.shape}\n"
-    log += f"Training Labels Shape: {train_labels.shape}\n"
     log += f"Testing Features Shape: {test_features.shape}\n"
-    log += f"Testing Labels Shape: {test_labels.shape}\n"
+    for cls_val, cls_name in zip(sorted(np.unique(labels)), class_names):
+        n_train = np.sum(train_labels == cls_val)
+        n_test = np.sum(test_labels == cls_val)
+        log += f"{cls_name}: {n_train} train, {n_test} test\n"
 
     # Balance the weights of the attribute of interest to account for unbalanced sample sizes per group
     sklearn_weights = class_weight.compute_class_weight(
@@ -78,9 +73,10 @@ def run_random_forest(attribute, n_trees, random_seed=None):
     classifier_accuracy = round(rf.score(test_features, test_labels)*100, 2)
     log += f"Classifier mean accuracy score: {classifier_accuracy}%.\n"
 
-    # Calculate confusion matrices
-    test_confusion_matrix = confusion_matrix(test_labels, predictions_test, labels=range(len(class_names)))
-    train_confusion_matrix = confusion_matrix(train_labels, predictions_train, labels=range(len(class_names)))
+    # Calculate confusion matrices using actual encoded label values (1-based)
+    label_values = sorted(np.unique(labels))
+    test_confusion_matrix = confusion_matrix(test_labels, predictions_test, labels=label_values)
+    train_confusion_matrix = confusion_matrix(train_labels, predictions_train, labels=label_values)
 
     test_confusion_df = pd.DataFrame(test_confusion_matrix, index=class_names, columns=class_names)
     train_confusion_df = pd.DataFrame(train_confusion_matrix, index=class_names, columns=class_names)
@@ -96,13 +92,19 @@ def run_random_forest(attribute, n_trees, random_seed=None):
 
     # Most important model quality plot
     # OOB error lines should flatline. If it doesn't flatline add more trees
-    rf_oob = RandomForestClassifier(class_weight=weights, warm_start=True, oob_score=True, random_state=123)
+    rf_oob = RandomForestClassifier(class_weight=weights, warm_start=True, oob_score=True, random_state=random_seed)
     errors = []
     tree_range = np.arange(1,500, 10)
-    for i in tree_range:
+    import time as _time
+    _start = _time.time()
+    for idx, i in enumerate(tree_range):
         rf_oob.set_params(n_estimators=i)
         rf_oob.fit(train_features, train_labels)
         errors.append(1-rf_oob.oob_score_)
+        if _progress_callback is not None:
+            elapsed = _time.time() - _start
+            est_left = (elapsed / (idx + 1)) * (len(tree_range) - idx - 1) if idx > 0 else 0
+            _progress_callback(idx + 1, len(tree_range), est_left)
 
 
     df_oob = pd.DataFrame({"n trees": tree_range, "error rate": errors})

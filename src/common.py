@@ -4,6 +4,8 @@ import io
 import uuid
 import base64
 
+from src.chat import render_sidebar_chat
+
 dataframe_names = ("md",
                    "data",
                    "ft",
@@ -21,7 +23,9 @@ dataframe_names = ("md",
                    "md_gnps",
                    "an_gnps",
                    "nw_gnps",
-                   "df_gnps_annotations")
+                   "df_gnps_annotations",
+                   "df_wilcoxon",
+                   "df_friedman")
 
 corrections_map = {"no correction": "none",
                    "Benjamini/Hochberg FDR": "fdr_bh",
@@ -42,13 +46,13 @@ def init_state():
         "md_uploaded": None,
         "ft_gnps": None,
         "md_gnps": None,
-        # add more keys your app depends on
+        "chat_history": [],
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
 def clear_cache_button():
-   if st.button("Clear Cache"):
+    if st.button("Clear Cache"):
         # Clear cache for both newer and older Streamlit versions
         if hasattr(st, "cache_data"):
             st.cache_data.clear()
@@ -58,6 +62,10 @@ def clear_cache_button():
         # Clear all session state variables
         for key in dataframe_names:
             st.session_state[key] = None
+        
+        # Reset chat history
+        if "chat_history" in st.session_state:
+            st.session_state["chat_history"] = []
 
         st.success("Cache cleared!")
 
@@ -79,6 +87,9 @@ def page_setup():
         st.session_state["data_preparation_done"] = False
 
     with st.sidebar:
+        # Gemini-powered chat assistant (shown above settings)
+        render_sidebar_chat()
+
         with st.expander("⚙️ Settings", expanded=True):
             st.selectbox("p-value correction",
                          corrections_map.keys(),
@@ -151,6 +162,8 @@ def page_setup():
             unsafe_allow_html=True,
         )
 
+        v_space(1)
+
 def v_space(n, col=None):
     for _ in range(n):
         if col:
@@ -221,14 +234,17 @@ def _fix_dataframe_types(df):
     
     return df
 
-def show_table(df, title="", col="", download=True):
+def show_table(df, title="", col="", download=True, hide_index=False):
     if col:
         col = col
     else:
         col = st
-    col.dataframe(df, use_container_width=True)
+    col.dataframe(df, use_container_width=True, hide_index=hide_index)
 
 def show_fig(fig, download_name, container_width=True):
+    # Store last figure in session for chat context
+    st.session_state["last_figure"] = fig
+
     st.plotly_chart(
         fig,
         use_container_width=container_width,
@@ -269,3 +285,13 @@ def download_plotly_figure(fig, filename="", col=""):
             file_name=filename,
             mime="application/png",
         )
+
+
+def _get_current_page_name():
+    """Best-effort retrieval of the current page name.
+
+    Individual pages can optionally set `st.session_state["current_page"]` for
+    more accurate labeling.
+    """
+
+    return st.session_state.get("current_page") or st.session_state.get("page_name") or "Current analysis page"

@@ -1,0 +1,22 @@
+[PAGE_CONTEXT]
+**Page Summary: One-way ANOVA & Tukey's Post-hoc Test**
+
+**Functionality:**
+This page conducts a One-way ANOVA (Analysis of Variance) to assess if there are statistically significant differences among the means of three or more independent groups. This is a parametric test assuming normality and variance homogeneity. If the global ANOVA detects significant differences, the user can then run Tukey's HSD (Honestly Significant Difference) post-hoc test to perform pairwise comparisons between specific groups to identify exactly which group means differ.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Treatment).
+- **Groups for ANOVA:** A multiselect option requiring at least three groups from the attribute to be included in the global ANOVA test.
+- **Tukey's Comparison:** Two specific groups selected from the previously defined set to undergo direct pairwise comparison (post-hoc analysis).
+- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR), applied to the ANOVA model.
+
+**Results:**
+- **ANOVA Results:**
+    - *Feature Significance Plot:* Scatter plot of the F-statistic vs. significance (-log of p-value) for all features.
+    - *Results Table:* Dataframe listing the F-statistic, raw p-value, corrected p-value, and boolean significance for each feature.
+    - *Single Metabolite Boxplots:* Visual distribution of intensities for a selected metabolite across all the groups included in the ANOVA.
+- **Tukey's Post-hoc Results:**
+    - *Test Statistic Plot:* Scatter plot of the difference in means (diff) vs. statistical significance (-log p).
+    - *Volcano Plot:* Scatter plot of Log2 Fold Change (x-axis) vs. -Log10 P-value (y-axis) for the pairwise comparison.
+    - *Results Table:* Dataframe detailing the difference in means, p-values (Tukey's and corrected), and significance for the specific group contrast.
+[/PAGE_CONTEXT]

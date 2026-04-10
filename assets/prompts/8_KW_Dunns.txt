@@ -1,0 +1,22 @@
+[PAGE_CONTEXT]
+**Page Summary: Kruskal-Wallis & Dunn's Post-hoc Test**
+
+**Functionality:**
+This page performs the Kruskal-Wallis (KW) test, a non-parametric alternative to one-way ANOVA, used to determine if there are statistically significant differences between three or more independent groups. It is ideal for non-normal or heteroscedastic data. If the KW test reveals significance, the user can proceed with Dunn's post-hoc test to perform pairwise comparisons between specific groups to pinpoint exactly where the metabolic differences lie.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Treatment).
+- **Groups for KW:** A multiselect option requiring at least three groups from the chosen attribute to be included in the global Kruskal-Wallis test.
+- **Dunn's Comparison:** Two specific groups selected from the previously defined set to undergo direct pairwise comparison (post-hoc analysis).
+- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR), applied independently to both KW and Dunn's test results.
+
+**Results:**
+- **Kruskal-Wallis Results:**
+    - *Feature Significance Plot:* Scatter plot of the H-statistic vs. significance (-log10 of p-value) for all features.
+    - *Results Table:* Dataframe listing the H-statistic, raw p-value, corrected p-value, and boolean significance for each feature across the multiple groups.
+    - *Single Metabolite Boxplots:* Visual distribution of intensities for a selected metabolite across all the groups included in the KW test.
+- **Dunn's Post-hoc Results:**
+    - *Test Statistic Plot:* Scatter plot of rank sum differences vs. statistical significance for the specific pairwise comparison.
+    - *Volcano Plot:* Scatter plot of Log2 Fold Change (x-axis) vs. -Log10 Corrected P-value (y-axis) for the pairwise comparison.
+    - *Results Table:* Dataframe detailing rank sum differences, raw and corrected p-values, and significance for the specific group contrast.
+[/PAGE_CONTEXT]

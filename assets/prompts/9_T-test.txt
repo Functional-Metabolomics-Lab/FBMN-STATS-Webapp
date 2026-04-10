@@ -1,0 +1,25 @@
+[PAGE_CONTEXT]
+**Page Summary: T-Test**
+
+**Functionality:**
+This page conducts T-tests to compare the means of two groups, determining if they are statistically different. It supports standard Student's t-test, Welch's t-test (robust to uneven variances), and Paired t-test (for matched samples). It is designed for analyzing mass spectrometry data, applying False Discovery Rate (FDR) correction to handle the multiple testing problem inherent in metabolomics.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Treatment).
+- **Comparison Options:** Two specific groups selected from the chosen attribute to be compared against each other.
+- **Paired:** A checkbox to indicate if samples are matched/related (e.g., before vs. after).
+- **T-test type:**
+    - *Welch's:* Does not assume equal variances (recommended/default).
+    - *Student's:* Assumes equal variances.
+    - *Auto:* Defaults to Welch's.
+- **Alternative Hypothesis:**
+    - *Two-sided:* Tests for difference in any direction.
+    - *Greater/Less:* Directional tests (Group A > Group B or A < B).
+- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR).
+
+**Results:**
+- **Results Table:** A detailed dataframe containing the T-statistic, raw p-value, corrected p-value (FDR), degrees of freedom (dof), group means, and statistical significance indicators.
+- **Feature Significance Plot:** A scatter plot of the T-statistic vs. significance (-log10 of corrected p-value).
+- **Volcano Plot:** A scatter plot displaying Log2 Fold Change (x-axis) vs. -Log10 Corrected P-value (y-axis), highlighting upregulated and downregulated features.
+- **Single Metabolite Boxplots:** Visualization of intensity distributions for individual user-selected metabolites across the two groups.
+[/PAGE_CONTEXT]

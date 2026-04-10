@@ -171,9 +171,6 @@ def get_pca_scatter_plot(pca_df, pca, attribute, md):
         left_index=True,
         right_index=True,
     )
-    import streamlit as st
-
-    st.dataframe(df)
     fig = px.scatter(
         df,
         x="PC1",

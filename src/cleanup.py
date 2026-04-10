@@ -62,16 +62,6 @@ def check_columns(md, ft):
 
 
 @st.cache_data
-# def inside_levels(df):
-#     df = pd.DataFrame(
-#         {
-#             "ATTRIBUTES": df.columns,
-#             "LEVELS": [set(df[col].dropna().astype(str).to_list()) for col in df],
-#             "COUNTS": [df[col].value_counts().to_list() for col in df],
-#         }
-#     )
-#     return df
-
 def inside_levels(df):
     out = []
     for col in df.columns:
@@ -126,6 +116,7 @@ def impute_missing_values(df, cutoff_LOD):
         return df.apply(
             lambda x: [np.random.randint(1, cutoff_LOD) if v == 0 else v for v in x]
         )
+    return df
 
 
 @st.cache_resource

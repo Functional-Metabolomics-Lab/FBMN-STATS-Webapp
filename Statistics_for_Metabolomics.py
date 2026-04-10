@@ -4,6 +4,7 @@ from src.common import *
 
 page_setup()
 init_state()
+st.session_state["current_page"] = "Home"
 
 st.image("assets/FBMN-STATS-GUIed_logo2.png", use_container_width=True)
 
@@ -71,7 +72,10 @@ st.markdown("""
             - **Univariate Analysis:**  
                 - **ANOVA** and Tukey's test (parametric, > 2 groups)  
                 - **Student's t-test** (parametric, for 2 groups)  
-                - **Kruskal–Wallis test** and Dunn's test (non-parametric, > 2 groups)
+                - **Kruskal–Wallis test** and Dunn's test (non-parametric, > 2 groups)  
+                - **Mann-Whitney U test** (non-parametric, 2 independent groups)  
+                - **Wilcoxon Signed-Rank test** (non-parametric, 2 paired groups)  
+                - **Friedman test** (non-parametric, ≥ 3 paired groups)
 """)
 
 st.subheader('Outputs')
@@ -86,6 +90,14 @@ st.markdown("""
 - Double click in the plot to zoom back out
 - Save plots using the camera icon in the top right corner (specify image format in settings panel)
 """)
+
+st.subheader('Integrated AI Assistance')
+st.markdown("""
+            For users new to metabolomics or statistical analysis, we have integrated an AI assistant to provide guidance and answer questions. 
+            View the AI assistant in the sidebar and feel free to ask any questions related to the app. 
+            The assistant can help with understanding statistical concepts, interpreting results, and providing recommendations for next steps in your analysis.
+""")
+            
 
 
 st.subheader('Settings Panel')

@@ -1,0 +1,31 @@
+[PAGE_CONTEXT]
+**Page Summary: PERMANOVA & PCoA (Multivariate Statistics)**
+
+**Functionality:**
+This page combines Principal Coordinate Analysis (PCoA) and Permutational Multivariate Analysis of Variance (PERMANOVA). PCoA is an ordination technique that visualizes the dissimilarity between samples using various distance metrics (unlike PCA which is strictly Euclidean). PERMANOVA complements this by statistically testing whether the observed separation between group centroids is significant. Together, they allow users to explore and quantify multivariate patterns in the dataset.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata selected by the user to define the sample groups.
+- **Category Filter:** A subset of groups from the chosen attribute to be included in the analysis (requires at least 2 distinct groups).
+- **Distance Matrix:** The metric used to calculate the dissimilarity between every pair of samples (e.g., Bray-Curtis, Jaccard, Euclidean). This choice depends on the nature of the data (e.g., compositional, presence/absence).
+- **Axes Selection (X/Y):** The specific Principal Coordinates (e.g., PCo1, PCo2) to plot against each other to visualize the data structure.
+
+**Advanced Filtering:**
+The Advanced Filtering section allows users to refine which samples are included in the PERMANOVA and PCoA before they are run. Filtering is applied in three steps:
+1. **Attribute selection:** Choose a metadata column (e.g., Treatment, Timepoint) to filter by. This is the same attribute used to group samples for both analyses.
+2. **Category selection:** A multiselect appears listing all unique groups within the chosen attribute. Deselecting a category excludes all of its samples from the analysis. At least one category must remain selected, and PERMANOVA requires at least two distinct categories to perform statistical testing.
+3. **Sample selection:** For each selected category, a row of individual sample checkboxes (multiselect) is shown. Deselecting specific samples removes only those samples while keeping the rest of the category in the analysis.
+
+Changes made inside the Advanced Filtering section are **not applied immediately**. The user must click the **Done** button to commit the selections. Until Done is clicked, a warning banner indicates unsaved changes. Once applied, a confirmation banner shows the number of samples and categories currently included. If no samples are explicitly deselected, all samples in the selected categories are used.
+
+**Results:**
+- **PERMANOVA Statistics:** A table reporting the Pseudo-F statistic, p-value (significance), and R² (effect size), indicating if the groups are statistically distinct.
+- **PCoA Scatter Plot:** A 2D visualization of samples projected onto the selected coordinates, colored by group, showing similarity relationships.
+- **Explained Variance (Scree) Plot:** A bar chart showing the percentage of total variation explained by each Principal Coordinate.
+- **Coordinate Data:** A table containing the calculated coordinate values for each sample.
+
+**Next potential pages**
+- Hierarchical Clustering: To visualize sample relationships in a dendrogram and heatmap format.
+- Random Forest: For supervised analysis to identify features that differentiate between groups.
+- Parametric Assumptions Evaluation: To check if the data meets assumptions for parametric tests, which can inform the choice of statistical methods in later pages.
+[/PAGE_CONTEXT]

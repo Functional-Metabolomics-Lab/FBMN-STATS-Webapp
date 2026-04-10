@@ -6,26 +6,28 @@ import skbio
 from scipy.spatial import distance
 
 @st.cache_data
-def permanova_pcoa(scaled, distance_matrix, attribute):
+def permanova_pcoa(scaled, distance_metric, attribute):
     
     # Create the distance matrix from the original data
     distance_matrix = skbio.stats.distance.DistanceMatrix(
-        distance.squareform(distance.pdist(scaled.values, distance_matrix)),
+        distance.squareform(distance.pdist(scaled.values, distance_metric)),
         ids = scaled.index, 
     )
     # perform PERMANOVA test
     permanova = skbio.stats.distance.permanova(distance_matrix, attribute)
     permanova["R2"] = 1 - 1 / (1 + permanova["test statistic"] * permanova["number of groups"] / (permanova["sample size"] - permanova["number of groups"] - 1))
+    permanova_df = permanova.to_frame(name="PERMANOVA results").reset_index()
+    permanova_df.columns = ["Metric", "Value"]
+    permanova_df["Value"] = permanova_df["Value"].apply(lambda x: str(x) if not isinstance(x, (int, float)) else x)
     # perfom PCoA
     pcoa = skbio.stats.ordination.pcoa(distance_matrix)
     
-    return permanova, pcoa
+    return permanova_df, pcoa
 
 
 # can not hash pcoa
 def get_pcoa_scatter_plot(pcoa, md_samples, attribute, pcoa_x_axis, pcoa_y_axis):
     df = pcoa.samples[[pcoa_x_axis, pcoa_y_axis]]
-    df = df.set_index(md_samples.index)
     df = pd.merge(
         df[[pcoa_x_axis, pcoa_y_axis]],
         md_samples[attribute].apply(str),
@@ -48,8 +50,8 @@ def get_pcoa_scatter_plot(pcoa, md_samples, attribute, pcoa_x_axis, pcoa_y_axis)
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
         title={"text": title, "font_color": "#3E3D53"},
-        xaxis_title=f"{pcoa_x_axis} ({round(pcoa.proportion_explained[int(pcoa_x_axis[2:]) - 1] * 100, 1)}%)",
-        yaxis_title=f"{pcoa_y_axis} ({round(pcoa.proportion_explained[int(pcoa_y_axis[2:]) - 1] * 100, 1)}%)",
+        xaxis_title=f"{pcoa_x_axis} ({round(pcoa.proportion_explained.iloc[int(pcoa_x_axis[2:]) - 1] * 100, 1)}%)",
+        yaxis_title=f"{pcoa_y_axis} ({round(pcoa.proportion_explained.iloc[int(pcoa_y_axis[2:]) - 1] * 100, 1)}%)",
     )
     return fig
 

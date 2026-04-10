@@ -1,0 +1,38 @@
+[PAGE_CONTEXT]
+**App Summary: FBMN-STATS (Statistics for Metabolomics)**
+
+**Functionality:**
+FBMN-STATS is a comprehensive web application designed to streamline the statistical analysis of feature-based molecular networking (FBMN) results and non-targeted metabolomics data. It translates complex statistical coding notebooks into an accessible GUI, guiding users from raw data import through processing to advanced multivariate and univariate statistical testing.
+
+**Workflow & Core Features:**
+
+1.  **Data Import, Preparation & Cleanup:**
+    *   **Flexible Data Import:** Support for local file uploads (.csv, .tsv, .txt, .xlsx) and direct fetching from GNPS/GNPS2 using Task IDs (FBMN and CMN).
+    *   **Automated Metadata Cleanup:** Intelligent handling of sample names, stripping extensions (.mzML/.mzXML), and standardizing attribute columns.
+    *   **Alignment & Verification:** Automatic matching of feature quantification tables with metadata to ensure dataset consistency.
+    *   **Data Refinement:** Robust options for blank removal (ratio-based), missing value imputation (LOD-based), and normalization (Total Ion Current (TIC) or Center-Scaling).
+
+2.  **Univariate Statistical Analysis:**
+    *   **Parametric Tests:** One-way ANOVA with Tukey's HSD post-hoc test for multi-group comparisons, and Student's t-test for pairwise analysis.
+    *   **Non-Parametric Tests:** Kruskal-Wallis with Dunn's post-hoc test (multi-group) and Mann-Whitney U test (pairwise) for non-normally distributed data.
+    *   **Multiple Testing Correction:** Built-in False Discovery Rate (FDR) corrections including Bonferroni, Sidak, Benjamini-Hochberg (BH), and Benjamini-Yekutieli (BY).
+
+3.  **Multivariate Statistical Analysis:**
+    *   **Unsupervised Learning:** Principal Component Analysis (PCA) and Principal Coordinate Analysis (PCoA) with PERMANOVA for global variance exploration.
+    *   **Hierarchical Clustering:** Generation of dendrograms and interactive heatmaps with various distance metrics.
+    *   **Supervised Learning:** Random Forest implementation for feature selection and identification of metabolites that differentiate between groups.
+
+4.  **Interactive Visualizations:**
+    *   **Dynamic Plots:** All charts are powered by Plotly, allowing for zooming, panning, and hovering for detailed data inspection.
+    *   **Statistical Graphics:** Volcano-like significance plots (Log(F) vs -Log(p)), scree plots for variance, and metabolite-specific boxplots with overlayed sample points.
+    *   **Publication-Ready Exports:** One-click download of interactive HTML files or high-resolution static images (PNG, SVG, etc.).
+
+5.  **Integrated LLM Assistance:**
+    *   **Context-Aware Chatbot:** An embedded assistant powered by Google Gemini that understands the current state of your analysis.
+    *   **Interpretation Support:** Can explain statistical results, interpret significant metabolites, and guide users through the workflow based on their active data.
+    *   **Technical Guidance:** Helps users understand complex parameters and select the appropriate statistical tests for their experimental design.
+
+**Next Steps:**
+- Data Preparation: Import, clean, and preprocess your metabolomics data to ensure it's ready for analysis.
+
+[/PAGE_CONTEXT]

@@ -8,6 +8,26 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 
+def parse_feature_labels(columns):
+    """Parse feature labels formatted as ID_mz@RT.
+
+    Returns two lists (mz_values, rt_values) aligned with the input columns.
+    Entries that don't match the expected format are returned as None.
+    """
+    mz_values, rt_values = [], []
+    for col in columns:
+        try:
+            at_idx = col.index("@")
+            rt = float(col[at_idx + 1:])
+            mz = float(col[:at_idx].rsplit("_", 1)[1])
+            mz_values.append(mz)
+            rt_values.append(rt)
+        except (ValueError, IndexError):
+            mz_values.append(None)
+            rt_values.append(None)
+    return mz_values, rt_values
+
+
 @st.cache_resource(show_spinner="Computing clustered heatmap...")
 def get_clustermap(data, color, vmin=None, vmax=None, dendro_height=0.2, heatmap_height=0.75):
     # Compute linkage for clustering
@@ -98,56 +118,3 @@ def get_dendrogram(data, label_pos="bottom"):
     fig.update_xaxes(side=label_pos)
     return fig
 
-
-# @st.cache_resource
-# def get_heatmap(data, color, vmin=None, vmax=None):
-#     # SORT DATA TO CREATE HEATMAP
-
-#     # Compute linkage matrix from distances for hierarchical clustering
-#     linkage_data_ft = linkage(data, method="complete", metric="euclidean")
-#     linkage_data_samples = linkage(data.T, method="complete", metric="euclidean")
-
-#     # Create a dictionary of data structures computed to render the dendrogram.
-#     # We will use dict['leaves']
-#     cluster_samples = dendrogram(linkage_data_ft, no_plot=True)
-#     cluster_ft = dendrogram(linkage_data_samples, no_plot=True)
-
-#     # Create dataframe with sorted samples
-#     ord_samp = data.copy()
-#     ord_samp.reset_index(inplace=True)
-#     ord_samp = ord_samp.reindex(cluster_samples["leaves"])
-#     ord_samp.rename(columns={"index": "Filename"}, inplace=True)
-#     ord_samp.set_index("Filename", inplace=True)
-
-#     # Create dataframe with sorted features
-#     ord_ft = ord_samp.T.reset_index()
-#     ord_ft = ord_ft.reindex(cluster_ft["leaves"])
-#     # Set index to original metabolite names if available
-#     if "metabolite" in ord_ft.columns:
-#         ord_ft.set_index("metabolite", inplace=True)
-#     # Otherwise, keep the current index
-    
-#     # Heatmap
-#     if vmin is None:
-#         vmin = np.nanpercentile(ord_ft.values, 5)
-#     if vmax is None:
-#         vmax = np.nanpercentile(ord_ft.values, 95)
-
-#     fig = px.imshow(
-#         ord_ft,
-#         y=ord_ft.index.tolist(),
-#         x=list(ord_ft.columns),
-#         text_auto=False,
-#         aspect="auto",
-#         color_continuous_scale=color,
-#         zmin=vmin,
-#         zmax=vmax
-#     )
-
-#     fig.update_layout(
-#         autosize=False, width=700, height=1200, xaxis_title="", yaxis_title="",
-#     )
-
-#     # fig.update_yaxes(visible=False)
-#     fig.update_xaxes(tickangle=35)
-#     return fig, ord_ft

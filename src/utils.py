@@ -8,6 +8,18 @@ import io
 
 allowed_formats = "Allowed formats: csv (comma separated), tsv (tab separated), txt (tab separated), xlsx (Excel file)."
 
+
+def get_feature_name_map():
+    """Return a mapping metabolite_id -> feature name from ft_gnps, or None."""
+    ft = st.session_state.get("ft_gnps", pd.DataFrame())
+    if ft is None or ft.empty:
+        return None
+    candidates = ["metabolite_name", "name", "feature_name", "compound_name", "compound"]
+    for c in candidates:
+        if c in ft.columns:
+            return ft[c].to_dict()
+    return None
+
 #########################
 ### useful functions ####
 #########################
@@ -99,6 +111,29 @@ def get_new_index(df):
     return df, "success"
 
 
+def compute_dominant_groups(metabolites, color_by):
+    """For each metabolite, determine which group in metadata column color_by has the highest mean intensity."""
+    import numpy as np
+    data = st.session_state.data
+    md = st.session_state.md
+    groups = sorted(str(g) for g in md[color_by].dropna().unique())
+    result = {}
+    for met in metabolites:
+        if met not in data.columns:
+            continue
+        best_group, best_mean = groups[0], -np.inf
+        for g in groups:
+            mask = md[color_by].astype(str) == g
+            valid_idx = mask[mask].index.intersection(data.index)
+            if len(valid_idx) == 0:
+                continue
+            m = data.loc[valid_idx, met].mean()
+            if pd.notnull(m) and m > best_mean:
+                best_mean, best_group = m, g
+        result[met] = best_group
+    return result, groups
+
+
 def inside_levels(df):
     # get all the columns (equals all attributes) -> will be number of rows
     levels = []
@@ -134,7 +169,4 @@ def download_plotly_figure(fig, col=None, filename=""):
             mime="application/png",
         )
 
-# Button to clear the cache
-if st.button("Clear Cache"):
-    st.cache_data.clear()
-    st.success("Cache cleared!")
+

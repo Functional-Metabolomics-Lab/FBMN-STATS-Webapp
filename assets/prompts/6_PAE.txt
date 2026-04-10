@@ -1,0 +1,21 @@
+[PAGE_CONTEXT]
+**Page Summary: Parametric Assumptions Evaluation**
+
+**Functionality:**
+This page assesses whether the metabolomics data satisfies the key assumptions required for parametric statistical tests (like t-tests and ANOVA): Normal Distribution and Equal Variance (Homoscedasticity). It performs statistical checks on all features to help the user decide between parametric (e.g., Student's t-test) and non-parametric (e.g., Mann-Whitney U) methods.
+
+**Parameters:**
+- **Attribute:** A categorical column from the metadata to define the groups.
+- **Comparison Groups:** Two specific groups selected from the attribute to be evaluated against each other.
+- **P-value Correction:** The globally selected method for multiple comparison adjustment, applied to the results of the assumption tests.
+
+**Results:**
+- **Normality Histogram (Shapiro-Wilk Test):** A histogram showing the distribution of p-values across all metabolites. A concentration of p-values < 0.05 indicates data is not normally distributed.
+- **Equal Variance Histogram (Levene's Test):** A histogram showing the distribution of p-values for variance equality. A concentration of p-values < 0.05 indicates variances are unequal between the groups.
+
+**Next potential pages**
+- ANOVA & Tukey's HSD: If assumptions are met, proceed with parametric tests for multi-group comparisons.
+- Kruskal-Wallis & Dunn's Test: If assumptions are violated, use non-parametric tests for multi-group comparisons.
+- Student's t-test: For pairwise comparisons if assumptions are met.
+- Mann-Whitney U Test: For pairwise comparisons if assumptions are violated.
+[/PAGE_CONTEXT]
