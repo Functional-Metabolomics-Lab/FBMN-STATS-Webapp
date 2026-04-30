@@ -18,15 +18,22 @@ def get_pca_df(scaled, n=5):
 
 
 @st.cache_resource
-def get_pca_scatter_plot(pca_df, pca_variance, attribute, md, pca_x_axis, pca_y_axis):
+def get_pca_scatter_plot(pca_df, pca_variance, color_attribute, md, pca_x_axis, pca_y_axis, shape_map_tuple=None, symbol_attribute=None):
     title = f"PRINCIPAL COMPONENT ANALYSIS"
+
+    cols_to_merge = [color_attribute]
+    if symbol_attribute and symbol_attribute != color_attribute:
+        cols_to_merge.append(symbol_attribute)
 
     df = pd.merge(
         pca_df[[pca_x_axis, pca_y_axis]],
-        md[attribute].apply(str),
+        md[cols_to_merge].apply(lambda c: c.apply(str)),
         left_index=True,
         right_index=True,
     )
+
+    symbol_col = symbol_attribute if symbol_attribute else color_attribute
+    symbol_map = dict(shape_map_tuple) if shape_map_tuple else None
 
     fig = px.scatter(
         df,
@@ -35,7 +42,9 @@ def get_pca_scatter_plot(pca_df, pca_variance, attribute, md, pca_x_axis, pca_y_
         template="plotly_white",
         width=600,
         height=400,
-        color=attribute,
+        color=color_attribute,
+        symbol=symbol_col,
+        symbol_map=symbol_map if symbol_map else None,
         hover_name=df.index,
     )
 

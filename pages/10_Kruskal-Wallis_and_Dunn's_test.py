@@ -94,8 +94,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         est_left = est_total - elapsed
                     else:
                         est_left = 0
-                    progress_placeholder.progress(progress, text=f"Running Kruskal Wallis: {done}/{total}")
-                    time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                    progress_placeholder.progress(progress, text=f"Running Kruskal-Wallis: metabolite {done} of {total}")
+                    time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
                 st.session_state.df_kruskal = kruskal_wallis(
                     st.session_state.data,
                     st.session_state.kruskal_attribute,
@@ -227,8 +227,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         est_left = est_total - elapsed
                     else:
                         est_left = 0
-                    progress_placeholder.progress(progress, text=f"Running Dunn's: {done}/{total}")
-                    time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                    progress_placeholder.progress(progress, text=f"Running Dunn's test: metabolite {done} of {total}")
+                    time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
                 st.session_state.df_dunn = dunn(
                     st.session_state.df_kruskal,
                     st.session_state.kruskal_attribute,

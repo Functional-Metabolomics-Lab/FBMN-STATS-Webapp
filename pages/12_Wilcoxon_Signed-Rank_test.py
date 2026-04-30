@@ -101,9 +101,9 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         def progress_callback(done, total, est_left):
             progress_placeholder.progress(
-                done / total, text=f"Running Wilcoxon Signed-Rank: {done}/{total}"
+                done / total, text=f"Running Wilcoxon Signed-Rank: metabolite {done} of {total}"
             )
-            time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+            time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
 
         result_df = gen_wilcoxon_data(
             st.session_state.wilcoxon_attribute,

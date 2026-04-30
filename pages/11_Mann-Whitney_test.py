@@ -81,8 +81,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         time_placeholder = st.empty()
         def progress_callback(done, total, est_left):
             progress = done / total
-            progress_placeholder.progress(progress, text=f"Running MWU: {done}/{total}")
-            time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+            progress_placeholder.progress(progress, text=f"Running Mann-Whitney U test: metabolite {done} of {total}")
+            time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
 
         st.session_state.df_mwu = gen_mwu_data(
             st.session_state.mwu_attribute,

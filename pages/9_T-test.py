@@ -122,8 +122,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         
         def progress_callback(done, total, est_left):
             progress = done / total
-            progress_placeholder.progress(progress, text=f"Running t-test: {done}/{total}")
-            time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+            progress_placeholder.progress(progress, text=f"Running t-test: metabolite {done} of {total}")
+            time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
 
         st.session_state.df_ttest = gen_ttest_data(
             st.session_state.ttest_attribute,

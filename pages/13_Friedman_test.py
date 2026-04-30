@@ -105,8 +105,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     est_left = est_total - elapsed
                 else:
                     est_left = 0
-                progress_placeholder.progress(progress, text=f"Running Friedman: {done}/{total}")
-                time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                progress_placeholder.progress(progress, text=f"Running Friedman test: metabolite {done} of {total}")
+                time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
 
             result = friedman_test(
                 st.session_state.friedman_attribute,
