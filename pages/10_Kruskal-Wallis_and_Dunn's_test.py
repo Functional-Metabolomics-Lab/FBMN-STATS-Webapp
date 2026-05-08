@@ -162,7 +162,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
             with kw_sub_tabs[2]:
                 # Include both significant and insignificant metabolites in dropdown
-                all_metabolites = sorted(list(st.session_state.df_kruskal["metabolite"]))
+                _df_kw = st.session_state.df_kruskal
+                _p_col = next((c for c in ["p-corrected", "p"] if c in _df_kw.columns), None)
+                if _p_col:
+                    all_metabolites = list(_df_kw.sort_values(_p_col)["metabolite"])
+                else:
+                    all_metabolites = sorted(list(_df_kw["metabolite"]))
                 def metabolite_label(m):
                     return str(m).split("&")[0] if "&" in str(m) else str(m)
                 st.selectbox(

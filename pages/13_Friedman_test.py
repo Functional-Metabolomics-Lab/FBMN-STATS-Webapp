@@ -182,7 +182,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         # --- Tab 2: Metabolite boxplots ---
         with tabs[2]:
-            all_metabolites = sorted(list(st.session_state.df_friedman["metabolite"]))
+            _df_fr = st.session_state.df_friedman
+            _p_col = next((c for c in ["p-corrected", "p"] if c in _df_fr.columns), None)
+            if _p_col:
+                all_metabolites = list(_df_fr.sort_values(_p_col)["metabolite"])
+            else:
+                all_metabolites = sorted(list(_df_fr["metabolite"]))
 
             def metabolite_label(m):
                 return m.split("&")[0] if "&" in m else m

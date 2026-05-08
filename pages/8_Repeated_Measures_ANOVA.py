@@ -196,7 +196,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         # --- Tab 2: Metabolite boxplots ---
         with tabs[2]:
-            all_metabolites = sorted(list(st.session_state.df_rm_anova["metabolite"]))
+            _df_rm = st.session_state.df_rm_anova
+            _p_col = next((c for c in ["p-corrected", "p"] if c in _df_rm.columns), None)
+            if _p_col:
+                all_metabolites = list(_df_rm.sort_values(_p_col)["metabolite"])
+            else:
+                all_metabolites = sorted(list(_df_rm["metabolite"]))
 
             def metabolite_label(m):
                 return m.split("&")[0] if "&" in m else m

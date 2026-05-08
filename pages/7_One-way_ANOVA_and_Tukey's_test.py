@@ -172,7 +172,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 else:
                     candidates = list(st.session_state.df_anova.index)
 
-                candidates.sort()
+                _p_col = next((c for c in ["p-corrected", "p"] if c in st.session_state.df_anova.columns), None)
+                if _p_col:
+                    _sorted_idx = list(st.session_state.df_anova.sort_values(_p_col).index)
+                    candidates = [m for m in _sorted_idx if m in set(candidates)]
+                else:
+                    candidates.sort()
                 def metabolite_label(m):
                     return str(m).split("&")[0] if "&" in str(m) else str(m)
                 st.selectbox(
