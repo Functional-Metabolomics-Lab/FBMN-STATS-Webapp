@@ -36,6 +36,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     c1, c2 = st.columns(2)
     def clear_mwu_data():
         st.session_state.df_mwu = pd.DataFrame()
+        st.session_state.pop("mwu_attempted_metabolites", None)
+        st.session_state.pop("mwu_returned_metabolites", None)
         for key in list(st.session_state.keys()):
             if key.startswith("mwu_metabolite") or key.startswith("_page_tab_"):
                 del st.session_state[key]
@@ -73,9 +75,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         on_change=clear_mwu_data
     )
 
-    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-    st.selectbox("Color significant points by", options=color_by_options, key="mwu_color_by")
-
     if c1.button("Run Mann-Whitney U test", type="primary", disabled=(len(st.session_state.mwu_options) != 2)):
         progress_placeholder = st.empty()
         time_placeholder = st.empty()
@@ -95,13 +94,24 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         time_placeholder.empty()
         st.rerun()
 
+    mwu_attempted = st.session_state.get("mwu_attempted_metabolites")
+    mwu_returned = st.session_state.get("mwu_returned_metabolites")
+    if mwu_attempted is not None and mwu_returned is not None and mwu_attempted != mwu_returned:
+        st.warning(
+            f"Mann-Whitney U attempted {mwu_attempted} metabolites, but only {mwu_returned} produced plottable results. "
+            f"{mwu_attempted - mwu_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+        )
+
     df = st.session_state.df_mwu
     if df is not None and not df.empty:
         tabs = st.tabs(["📈 Feature significance", "📊 Single metabolite plots", "📁 Data"])
 
         with tabs[0]:
+            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+            st.selectbox("Color significant points by", options=color_by_options, key="mwu_color_by")
             _mwu_color = st.session_state.get("mwu_color_by", "Significance (default)")
-            fig = plot_mwu(df, color_by=None if _mwu_color == "Significance (default)" else _mwu_color)
+            mwu_plot_df = filter_top_significant_points_ui(df, "mwu_plot")
+            fig = plot_mwu(mwu_plot_df, color_by=None if _mwu_color == "Significance (default)" else _mwu_color)
             show_fig(fig, "mwu")
             st.session_state["page_figs_mwu_sig"] = fig
 

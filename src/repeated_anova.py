@@ -17,17 +17,18 @@ def gen_rm_anova_data(df_long, metabolites, subject_col, within_col, _progress_c
     total = len(metabolites)
     start_time = time.time()
     for idx, col in enumerate(metabolites):
+        if _progress_callback is not None:
+            elapsed = time.time() - start_time
+            done = idx + 1
+            est_left = (elapsed / done) * (total - done) if done > 0 else 0
+            _progress_callback(done, total, est_left)
+
         subset = df_long[df_long["metabolite"] == col].dropna(subset=["value"])
         if subset.empty:
             continue
         try:
             result = pg.rm_anova(data=subset, dv="value", within=within_col, subject=subject_col)
         except Exception:
-            if _progress_callback is not None:
-                elapsed = time.time() - start_time
-                done = idx + 1
-                est_left = (elapsed / done) * (total - done) if done > 0 else 0
-                _progress_callback(done, total, est_left)
             continue
 
         # Extract p and F from the result
@@ -42,12 +43,6 @@ def gen_rm_anova_data(df_long, metabolites, subject_col, within_col, _progress_c
 
         if p is None or f is None:
             continue
-
-        if _progress_callback is not None:
-            elapsed = time.time() - start_time
-            done = idx + 1
-            est_left = (elapsed / done) * (total - done) if done > 0 else 0
-            _progress_callback(done, total, est_left)
 
         yield col, p, f
 
@@ -80,7 +75,25 @@ def rm_anova_test(attribute, correction, elements, subject_col, _progress_callba
     if elements is not None:
         combined = combined[combined[attribute].isin(elements)]
 
-    metabolite_cols = list(st.session_state.data.columns)
+    target_groups = list(elements) if elements is not None else list(combined[attribute].dropna().unique())
+    if not target_groups:
+        st.session_state.rm_anova_attempted_metabolites = 0
+        st.session_state.rm_anova_returned_metabolites = 0
+        return pd.DataFrame()
+
+    metabolite_cols = []
+    for col in st.session_state.data.columns:
+        tmp = combined[[attribute, col]].dropna(subset=[attribute, col])
+        if tmp.empty:
+            continue
+        present_groups = set(tmp[attribute].astype(str).unique())
+        if all(str(g) in present_groups for g in target_groups):
+            metabolite_cols.append(col)
+    st.session_state.rm_anova_attempted_metabolites = len(metabolite_cols)
+
+    if not metabolite_cols:
+        st.session_state.rm_anova_returned_metabolites = 0
+        return pd.DataFrame()
 
     # Melt to long form for pg.rm_anova
     id_vars = [subject_col, attribute]
@@ -94,12 +107,15 @@ def rm_anova_test(attribute, correction, elements, subject_col, _progress_callba
     results = list(gen_rm_anova_data(df_long, metabolite_cols, subject_col, attribute,
                                      _progress_callback=_progress_callback))
     if not results:
+        st.session_state.rm_anova_returned_metabolites = 0
         return pd.DataFrame()
 
     df_res = pd.DataFrame(results, columns=["metabolite", "p", "F"])
     df_res = df_res.dropna()
     if df_res.empty:
+        st.session_state.rm_anova_returned_metabolites = 0
         return df_res
+    st.session_state.rm_anova_returned_metabolites = len(df_res)
     df_res = add_p_correction_to_rm_anova(df_res, correction)
     return df_res
 
@@ -146,7 +162,12 @@ def get_rm_anova_plot(rm_anova_df, color_by=None):
     if not sig.empty:
         if color_by is not None:
             from src.utils import compute_dominant_groups
-            dominant_map, all_groups = compute_dominant_groups(list(sig["metabolite"]), color_by)
+            dominant_map, all_groups = compute_dominant_groups(
+                list(sig["metabolite"]),
+                color_by,
+                sample_filter_column=st.session_state.get("rm_anova_attribute"),
+                sample_filter_values=st.session_state.get("rm_anova_groups"),
+            )
             colors = px.colors.qualitative.Plotly
             for gi, group in enumerate(all_groups):
                 group_sig = sig[sig["metabolite"].map(lambda m, g=group: dominant_map.get(m) == g)]

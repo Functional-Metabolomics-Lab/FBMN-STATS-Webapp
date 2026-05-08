@@ -49,6 +49,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     def clear_wilcoxon_data():
         st.session_state.df_wilcoxon = pd.DataFrame()
+        st.session_state.pop("wilcoxon_attempted_metabolites", None)
+        st.session_state.pop("wilcoxon_returned_metabolites", None)
         for key in list(st.session_state.keys()):
             if key.startswith("wilcoxon_metabolite") or key.startswith("_page_tab_"):
                 del st.session_state[key]
@@ -91,9 +93,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         on_change=clear_wilcoxon_data,
     )
 
-    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-    st.selectbox("Color significant points by", options=color_by_options, key="wilcoxon_color_by")
-
     run_disabled = len(st.session_state.wilcoxon_options) != 2
     if c1.button("Run Wilcoxon Signed-Rank test", type="primary", disabled=run_disabled):
         progress_placeholder = st.empty()
@@ -124,13 +123,24 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state.df_wilcoxon = result_df
             st.rerun()
 
+    wilcoxon_attempted = st.session_state.get("wilcoxon_attempted_metabolites")
+    wilcoxon_returned = st.session_state.get("wilcoxon_returned_metabolites")
+    if wilcoxon_attempted is not None and wilcoxon_returned is not None and wilcoxon_attempted != wilcoxon_returned:
+        st.warning(
+            f"Wilcoxon attempted {wilcoxon_attempted} metabolites, but only {wilcoxon_returned} produced plottable results. "
+            f"{wilcoxon_attempted - wilcoxon_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+        )
+
     df = st.session_state.df_wilcoxon
     if df is not None and not df.empty:
         tabs = st.tabs(["📈 Feature significance", "📊 Single metabolite plots", "📁 Data"])
 
         with tabs[0]:
+            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+            st.selectbox("Color significant points by", options=color_by_options, key="wilcoxon_color_by")
             _wilcoxon_color = st.session_state.get("wilcoxon_color_by", "Significance (default)")
-            fig = plot_wilcoxon(df, color_by=None if _wilcoxon_color == "Significance (default)" else _wilcoxon_color)
+            wilcoxon_plot_df = filter_top_significant_points_ui(df, "wilcoxon_plot")
+            fig = plot_wilcoxon(wilcoxon_plot_df, color_by=None if _wilcoxon_color == "Significance (default)" else _wilcoxon_color)
             show_fig(fig, "wilcoxon-feature-significance")
             st.session_state["page_figs_wilcoxon_sig"] = fig
 

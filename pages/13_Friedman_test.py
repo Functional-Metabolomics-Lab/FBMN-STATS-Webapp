@@ -58,6 +58,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     if prev_friedman_attribute is not None and friedman_attribute != prev_friedman_attribute:
         st.session_state.df_friedman = pd.DataFrame()
+        st.session_state.pop("friedman_attempted_metabolites", None)
+        st.session_state.pop("friedman_returned_metabolites", None)
     st.session_state["_prev_friedman_attribute"] = friedman_attribute
 
     attribute = st.session_state.friedman_attribute
@@ -80,6 +82,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     if prev_friedman_groups is not None and set(friedman_groups) != set(prev_friedman_groups):
         st.session_state.df_friedman = pd.DataFrame()
+        st.session_state.pop("friedman_attempted_metabolites", None)
+        st.session_state.pop("friedman_returned_metabolites", None)
     st.session_state["_prev_friedman_groups"] = list(friedman_groups)
 
     min_required = 3
@@ -87,8 +91,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     st.button("Run Friedman test", key="run_friedman", type="primary", disabled=run_disabled)
 
-    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-    st.selectbox("Color significant points by", options=color_by_options, key="friedman_color_by")
     if st.session_state.run_friedman:
         if "friedman_groups" not in st.session_state or len(st.session_state.friedman_groups) < min_required:
             st.error(f"At least {min_required} groups must be selected to run the Friedman test.")
@@ -126,6 +128,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 st.session_state.df_friedman = result
                 st.rerun()
 
+    friedman_attempted = st.session_state.get("friedman_attempted_metabolites")
+    friedman_returned = st.session_state.get("friedman_returned_metabolites")
+    if friedman_attempted is not None and friedman_returned is not None and friedman_attempted != friedman_returned:
+        st.warning(
+            f"Friedman attempted {friedman_attempted} metabolites, but only {friedman_returned} produced plottable results. "
+            f"{friedman_attempted - friedman_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+        )
+
     # --- Tabs ---
     tab_options = [
         "📈 Friedman: plot",
@@ -138,8 +148,11 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         # --- Tab 0: Friedman plot ---
         with tabs[0]:
+            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+            st.selectbox("Color significant points by", options=color_by_options, key="friedman_color_by")
             _friedman_color = st.session_state.get("friedman_color_by", "Significance (default)")
-            fig = get_friedman_plot(st.session_state.df_friedman, color_by=None if _friedman_color == "Significance (default)" else _friedman_color)
+            friedman_plot_df = filter_top_significant_points_ui(st.session_state.df_friedman, "friedman_plot")
+            fig = get_friedman_plot(friedman_plot_df, color_by=None if _friedman_color == "Significance (default)" else _friedman_color)
             show_fig(fig, "friedman")
             st.session_state["page_figs_friedman_plot"] = fig
 

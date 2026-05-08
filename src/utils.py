@@ -111,12 +111,23 @@ def get_new_index(df):
     return df, "success"
 
 
-def compute_dominant_groups(metabolites, color_by):
+def compute_dominant_groups(metabolites, color_by, sample_filter_column=None, sample_filter_values=None):
     """For each metabolite, determine which group in metadata column color_by has the highest mean intensity."""
     import numpy as np
     data = st.session_state.data
     md = st.session_state.md
+
+    if sample_filter_column is not None and sample_filter_values:
+        md = md[md[sample_filter_column].isin(sample_filter_values)]
+
+    valid_idx = md.index.intersection(data.index)
+    md = md.loc[valid_idx]
+    data = data.loc[valid_idx]
+
     groups = sorted(str(g) for g in md[color_by].dropna().unique())
+    if not groups:
+        return {}, []
+
     result = {}
     for met in metabolites:
         if met not in data.columns:

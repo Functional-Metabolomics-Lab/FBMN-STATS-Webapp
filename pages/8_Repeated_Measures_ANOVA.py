@@ -59,6 +59,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     if prev_rm_anova_attribute is not None and rm_anova_attribute != prev_rm_anova_attribute:
         st.session_state.df_rm_anova = pd.DataFrame()
+        st.session_state.pop("rm_anova_attempted_metabolites", None)
+        st.session_state.pop("rm_anova_returned_metabolites", None)
     st.session_state["_prev_rm_anova_attribute"] = rm_anova_attribute
 
     attribute = st.session_state.rm_anova_attribute
@@ -78,6 +80,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     if prev_rm_subject is not None and rm_subject != prev_rm_subject:
         st.session_state.df_rm_anova = pd.DataFrame()
+        st.session_state.pop("rm_anova_attempted_metabolites", None)
+        st.session_state.pop("rm_anova_returned_metabolites", None)
     st.session_state["_prev_rm_anova_subject"] = rm_subject
 
     # --- Group selector ---
@@ -86,7 +90,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     prev_rm_anova_groups = st.session_state.get("_prev_rm_anova_groups", None)
     rm_anova_groups = c1.multiselect(
-        "Select conditions to include (minimum 3)",
+        "Select groups to include (minimum 3)",
         options=attribute_options,
         default=attribute_options,
         key="rm_anova_groups",
@@ -95,15 +99,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
     if prev_rm_anova_groups is not None and set(rm_anova_groups) != set(prev_rm_anova_groups):
         st.session_state.df_rm_anova = pd.DataFrame()
+        st.session_state.pop("rm_anova_attempted_metabolites", None)
+        st.session_state.pop("rm_anova_returned_metabolites", None)
     st.session_state["_prev_rm_anova_groups"] = list(rm_anova_groups)
 
     min_required = 3
     run_disabled = not ("rm_anova_groups" in st.session_state and len(st.session_state.rm_anova_groups) >= min_required)
 
     st.button("Run Repeated Measures ANOVA", key="run_rm_anova", type="primary", disabled=run_disabled)
-
-    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-    st.selectbox("Color significant points by", options=color_by_options, key="rm_anova_color_by")
 
     if st.session_state.run_rm_anova:
         if "rm_anova_groups" not in st.session_state or len(st.session_state.rm_anova_groups) < min_required:
@@ -137,6 +140,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 st.session_state.df_rm_anova = result
                 st.rerun()
 
+    rm_attempted = st.session_state.get("rm_anova_attempted_metabolites")
+    rm_returned = st.session_state.get("rm_anova_returned_metabolites")
+    if rm_attempted is not None and rm_returned is not None and rm_attempted != rm_returned:
+        st.warning(
+            f"Repeated Measures ANOVA attempted {rm_attempted} metabolites, but only {rm_returned} produced plottable results. "
+            f"{rm_attempted - rm_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+        )
+
     # --- Result tabs ---
     if st.session_state.df_rm_anova is not None and not st.session_state.df_rm_anova.empty:
         tab_labels = [
@@ -148,9 +159,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         # --- Tab 0: Plot ---
         with tabs[0]:
+            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+            st.selectbox("Color significant points by", options=color_by_options, key="rm_anova_color_by")
             _rm_color = st.session_state.get("rm_anova_color_by", "Significance (default)")
+            rm_anova_plot_df = filter_top_significant_points_ui(st.session_state.df_rm_anova, "rm_anova_plot")
             fig = get_rm_anova_plot(
-                st.session_state.df_rm_anova,
+                rm_anova_plot_df,
                 color_by=None if _rm_color == "Significance (default)" else _rm_color
             )
             show_fig(fig, "rm_anova")

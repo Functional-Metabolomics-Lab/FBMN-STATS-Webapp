@@ -85,6 +85,8 @@ def advanced_filtering(attribute_col, all_categories, md_all):
         st.session_state["pca_committed_categories"] = committed_cats
         st.session_state["pca_committed_samples"] = committed_samps
         st.session_state["pca_committed_shapes"] = dict(shape_selections)
+        # Keep coloring aligned with the applied filtering attribute.
+        st.session_state["pca_color_by"] = attribute_col
         st.session_state["pca_filter_applied"] = True
         st.rerun()
 
@@ -130,6 +132,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         st.session_state["pca_committed_categories"] = all_categories
     if "pca_committed_samples" not in st.session_state:
         st.session_state["pca_committed_samples"] = list(all_md.index)
+    if "pca_color_by" not in st.session_state or st.session_state["pca_color_by"] not in st.session_state.md.columns:
+        st.session_state["pca_color_by"] = attribute_col
 
     # Reset if committed categories are no longer valid (e.g. attribute changed)
     if not set(st.session_state["pca_committed_categories"]).issubset(set(all_categories)):

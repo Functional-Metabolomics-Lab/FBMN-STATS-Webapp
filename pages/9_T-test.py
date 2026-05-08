@@ -50,6 +50,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     c1, c2 = st.columns(2)
     def clear_ttest_data():
         st.session_state.df_ttest = pd.DataFrame()
+        st.session_state.pop("ttest_attempted_metabolites", None)
+        st.session_state.pop("ttest_returned_metabolites", None)
         # Remove tab-related session state if present
         for key in list(st.session_state.keys()):
             if key.startswith("ttest_metabolite") or key.startswith("_page_tab_"):
@@ -109,9 +111,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         on_change=clear_ttest_data
     )
 
-    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-    st.selectbox("Color significant points by", options=color_by_options, key="ttest_color_by")
-
     if c1.button("Run t-test", type="primary", disabled=(len(st.session_state.ttest_options) != 2)):
         # Map label to value for correction
         correction_value = correction_options[st.session_state.ttest_correction_label]
@@ -139,6 +138,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         time_placeholder.empty()
         st.rerun()
 
+    ttest_attempted = st.session_state.get("ttest_attempted_metabolites")
+    ttest_returned = st.session_state.get("ttest_returned_metabolites")
+    if ttest_attempted is not None and ttest_returned is not None and ttest_attempted != ttest_returned:
+        st.warning(
+            f"T-test attempted {ttest_attempted} metabolites, but only {ttest_returned} produced plottable results. "
+            f"{ttest_attempted - ttest_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+        )
+
     # Only show tabs if t-test results exist (button pressed and results generated)
     ttest_stat_cols = {"T", "T-val", "t", "tval"}
     df = st.session_state.df_ttest
@@ -146,8 +153,11 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         tabs = st.tabs(["📈 Feature significance", "📈 Volcano plot", "📊 Single metabolite plots", "📁 Data"])
 
         with tabs[0]:
+            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+            st.selectbox("Color significant points by", options=color_by_options, key="ttest_color_by")
             _ttest_color = st.session_state.get("ttest_color_by", "Significance (default)")
-            fig = plot_ttest(df, color_by=None if _ttest_color == "Significance (default)" else _ttest_color)
+            ttest_plot_df = filter_top_significant_points_ui(df, "ttest_plot")
+            fig = plot_ttest(ttest_plot_df, color_by=None if _ttest_color == "Significance (default)" else _ttest_color)
             show_fig(fig, "t-test")
             st.session_state["page_figs_ttest_sig"] = fig
 

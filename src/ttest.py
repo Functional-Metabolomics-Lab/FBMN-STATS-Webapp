@@ -10,8 +10,14 @@ import time
 def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correction, p_correction, _progress_callback=None):
     df = pd.concat([st.session_state.data, st.session_state.md], axis=1)
     ttest = []
-    columns = list(st.session_state.data.columns)
+    columns = []
+    for col in st.session_state.data.columns:
+        tmp = df[[ttest_attribute, col]].dropna(subset=[ttest_attribute, col])
+        present_groups = set(tmp[ttest_attribute].astype(str).unique())
+        if all(str(g) in present_groups for g in target_groups):
+            columns.append(col)
     total = len(columns)
+    st.session_state.ttest_attempted_metabolites = total
     start_time = None
     for idx, col in enumerate(columns):
         if idx == 0:
@@ -59,8 +65,13 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
             est_left = (elapsed / done) * (total - done) if done > 0 else 0
             _progress_callback(done, total, est_left)
 
+    if not ttest:
+        st.session_state.ttest_returned_metabolites = 0
+        return pd.DataFrame()
+
     ttest = pd.concat(ttest).set_index("metabolite")
     ttest = ttest.dropna(subset=['p-val']) # Only drop if p-val is NaN
+    st.session_state.ttest_returned_metabolites = len(ttest)
 
     ttest.insert(8, "p-corrected", pg.multicomp(ttest["p-val"].astype(float), method=p_correction)[1])
     # add significance
@@ -119,7 +130,12 @@ def plot_ttest(df, color_by=None):
     if color_by is not None:
         from src.utils import compute_dominant_groups
         sig_mets = list(df[df["significance"]].index)
-        dominant_map, all_groups = compute_dominant_groups(sig_mets, color_by)
+        dominant_map, all_groups = compute_dominant_groups(
+            sig_mets,
+            color_by,
+            sample_filter_column=st.session_state.get("ttest_attribute"),
+            sample_filter_values=st.session_state.get("ttest_options"),
+        )
         df["sig_label"] = df.apply(
             lambda row: dominant_map.get(row.name, "insignificant") if row["significance"] else "insignificant",
             axis=1
