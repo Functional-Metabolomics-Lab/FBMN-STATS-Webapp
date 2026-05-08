@@ -7,8 +7,14 @@ import time
 def gen_mwu_data(mwu_attribute, target_groups, alternative, p_correction, _progress_callback=None):
     df = pd.concat([st.session_state.data, st.session_state.md], axis=1)
     mwu_results = []
-    columns = list(st.session_state.data.columns)
+    columns = []
+    for col in st.session_state.data.columns:
+        tmp = df[[mwu_attribute, col]].dropna(subset=[mwu_attribute, col])
+        present_groups = set(tmp[mwu_attribute].astype(str).unique())
+        if all(str(g) in present_groups for g in target_groups):
+            columns.append(col)
     total = len(columns)
+    st.session_state.mwu_attempted_metabolites = total
     start_time = None
     for idx, col in enumerate(columns):
         if idx == 0:
@@ -32,8 +38,14 @@ def gen_mwu_data(mwu_attribute, target_groups, alternative, p_correction, _progr
             done = idx + 1
             est_left = (elapsed / done) * (total - done) if done > 0 else 0
             _progress_callback(done, total, est_left)
+
+    if not mwu_results:
+        st.session_state.mwu_returned_metabolites = 0
+        return pd.DataFrame()
+
     mwu = pd.concat(mwu_results).set_index("metabolite")
     mwu = mwu.dropna(subset=["p-val"])
+    st.session_state.mwu_returned_metabolites = len(mwu)
     mwu.insert(4, "p-corrected", pg.multicomp(mwu["p-val"].astype(float), method=p_correction)[1])
     mwu.insert(5, "significance", mwu["p-corrected"] < 0.05)
     mwu.insert(6, "attribute", mwu_attribute)
@@ -67,7 +79,12 @@ def plot_mwu(df, color_by=None):
     if color_by is not None:
         from src.utils import compute_dominant_groups
         sig_mets = list(df[df["significance"]].index)
-        dominant_map, all_groups = compute_dominant_groups(sig_mets, color_by)
+        dominant_map, all_groups = compute_dominant_groups(
+            sig_mets,
+            color_by,
+            sample_filter_column=st.session_state.get("mwu_attribute"),
+            sample_filter_values=st.session_state.get("mwu_options"),
+        )
         df["sig_label"] = df.apply(
             lambda row: dominant_map.get(row.name, "insignificant") if row["significance"] else "insignificant",
             axis=1

@@ -59,8 +59,27 @@ def friedman_test(attribute, correction, elements, _progress_callback=None):
     if elements is not None:
         combined = combined[combined[attribute].isin(elements)]
 
-    groups = sorted(combined[attribute].unique())
-    metabolite_cols = list(st.session_state.data.columns)
+    groups = sorted(combined[attribute].dropna().unique())
+    if not groups:
+        st.session_state.friedman_attempted_metabolites = 0
+        st.session_state.friedman_returned_metabolites = 0
+        return pd.DataFrame()
+
+    metabolite_cols = []
+    for col in st.session_state.data.columns:
+        valid_for_all = True
+        for g in groups:
+            n_nonnull = combined.loc[combined[attribute] == g, col].dropna().shape[0]
+            if n_nonnull < 2:
+                valid_for_all = False
+                break
+        if valid_for_all:
+            metabolite_cols.append(col)
+    st.session_state.friedman_attempted_metabolites = len(metabolite_cols)
+
+    if not metabolite_cols:
+        st.session_state.friedman_returned_metabolites = 0
+        return pd.DataFrame()
 
     # Build per-group dataframes, reset index for row-wise pairing
     group_data_raw = [
@@ -71,6 +90,7 @@ def friedman_test(attribute, correction, elements, _progress_callback=None):
     # Truncate to equal length (shortest group)
     min_len = min(len(gdf) for gdf in group_data_raw)
     if min_len < 2:
+        st.session_state.friedman_returned_metabolites = 0
         return pd.DataFrame()
     group_data = [gdf.iloc[:min_len] for gdf in group_data_raw]
 
@@ -81,10 +101,12 @@ def friedman_test(attribute, correction, elements, _progress_callback=None):
         )
     )
     if df.empty:
+        st.session_state.friedman_returned_metabolites = 0
         return df
     df = df.dropna()
     df = add_p_correction_to_friedman(df, correction)
     df = df[df["metabolite"] != attribute]
+    st.session_state.friedman_returned_metabolites = len(df)
     return df
 
 
@@ -138,7 +160,12 @@ def get_friedman_plot(friedman_df, color_by=None):
     ))
     if color_by is not None:
         from src.utils import compute_dominant_groups
-        dominant_map, all_groups = compute_dominant_groups(list(sig["metabolite"]), color_by)
+        dominant_map, all_groups = compute_dominant_groups(
+            list(sig["metabolite"]),
+            color_by,
+            sample_filter_column=st.session_state.get("friedman_attribute"),
+            sample_filter_values=st.session_state.get("friedman_groups"),
+        )
         colors = px.colors.qualitative.Plotly
         for gi, group in enumerate(all_groups):
             group_sig = sig[sig["metabolite"].map(lambda m, g=group: dominant_map.get(m) == g)]

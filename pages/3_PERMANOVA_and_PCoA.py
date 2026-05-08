@@ -1,6 +1,12 @@
 import streamlit as st
 from src.common import *
 
+PLOTLY_SHAPES = [
+    "circle", "square", "diamond", "cross", "x",
+    "triangle-up", "triangle-down", "star", "pentagon", "hexagon",
+    "hexagram", "hourglass", "bowtie", "diamond-tall", "diamond-wide",
+]
+
 try:
     from src.pcoa import *
 
@@ -37,20 +43,32 @@ try:
             st.warning("⚠️ At least one category must be selected.")
 
         selections = {}
+        shape_selections = {}
         if selected_cats:
-            header_cat, header_samp = st.columns([1, 4])
+            header_cat, header_samp, header_shape = st.columns([1, 3, 1])
             header_cat.markdown("**Category**")
             header_samp.markdown("**Samples**")
-            for cat in selected_cats:
+            header_shape.markdown("**Shape**")
+            committed_shapes = st.session_state.get("pcoa_committed_shapes", {})
+            for ci, cat in enumerate(selected_cats):
                 cat_samples = list(md_all[md_all[attribute_col] == cat].index)
                 key = f"pcoa_adv_samples_{attribute_col}_{cat}"
-                c_cat, c_samp = st.columns([1, 4])
+                c_cat, c_samp, c_shape = st.columns([1, 3, 1])
                 c_cat.write(str(cat))
                 selections[cat] = c_samp.multiselect(
                     f"Samples for {cat}",
                     options=cat_samples,
                     default=cat_samples,
                     key=key,
+                    label_visibility="collapsed",
+                )
+                default_shape = committed_shapes.get(str(cat), "circle")
+                default_idx = PLOTLY_SHAPES.index(default_shape) if default_shape in PLOTLY_SHAPES else 0
+                shape_selections[str(cat)] = c_shape.selectbox(
+                    f"Shape for {cat}",
+                    options=PLOTLY_SHAPES,
+                    index=default_idx,
+                    key=f"pcoa_adv_shape_{attribute_col}_{cat}",
                     label_visibility="collapsed",
                 )
 
@@ -63,14 +81,19 @@ try:
                 committed_samps = list(md_all[md_all[attribute_col].isin(committed_cats)].index)
             st.session_state["pcoa_committed_categories"] = committed_cats
             st.session_state["pcoa_committed_samples"] = committed_samps
+            st.session_state["pcoa_committed_shapes"] = dict(shape_selections)
+            # Keep coloring aligned with the applied filtering attribute.
+            st.session_state["pcoa_color_by"] = attribute_col
             st.session_state["pcoa_filter_applied"] = True
             st.rerun()
 
         # Compare current selections to committed to detect unsaved changes
         committed_cats = st.session_state.get("pcoa_committed_categories", all_categories)
         committed_samps = set(st.session_state.get("pcoa_committed_samples", list(md_all.index)))
+        committed_shapes = st.session_state.get("pcoa_committed_shapes", {})
         current_samps = set(s for cat_samps in selections.values() for s in cat_samps)
-        is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps
+        current_shapes = dict(shape_selections) if shape_selections else {}
+        is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps or current_shapes != committed_shapes
 
         if is_dirty:
             st.warning("⚠️ Unsaved changes — click Done to apply.")
@@ -120,6 +143,8 @@ try:
             st.session_state["pcoa_committed_categories"] = all_categories
         if "pcoa_committed_samples" not in st.session_state:
             st.session_state["pcoa_committed_samples"] = list(all_md.index)
+        if "pcoa_color_by" not in st.session_state or st.session_state["pcoa_color_by"] not in st.session_state.md.columns:
+            st.session_state["pcoa_color_by"] = att_col
 
         # Reset if committed categories are no longer valid (e.g. attribute changed)
         if not set(st.session_state["pcoa_committed_categories"]).issubset(set(all_categories)):
@@ -180,6 +205,11 @@ try:
                 with col3:
                     pcoa_color_by = st.selectbox("Color by", st.session_state.md.columns, key="pcoa_color_by")
 
+                if att_col == pcoa_color_by:
+                    st.info("ℹ️ The **filter by** and **color by** categories are the same — the plot will be organized by that single metadata category.")
+                else:
+                    st.info(f"ℹ️ The **filter by** (*{att_col}*) and **color by** (*{pcoa_color_by}*) categories differ — points will be filtered and shaped by *{att_col}*, but colored by *{pcoa_color_by}*, creating subgroups.")
+
                 if pcoa_x_axis == pcoa_y_axis:
                     st.warning("⚠️ X-axis and Y-axis cannot be the same. Please choose different axes to view results.")
                 else:
@@ -188,12 +218,15 @@ try:
                         with t1:
                             show_table(permanova, "PERMANOVA-statistics", hide_index=True)
                         with t2:
+                            shape_map = st.session_state.get("pcoa_committed_shapes", {})
                             fig = get_pcoa_scatter_plot(
                                 pcoa_result,
                                 st.session_state.md.loc[filtered_md.index],
                                 pcoa_color_by,
                                 pcoa_x_axis,
                                 pcoa_y_axis,
+                                shape_map=shape_map,
+                                symbol_attribute=att_col,
                             )
                             show_fig(fig, "principal-coordinate-analysis")
                             st.session_state["page_figs_pcoa_scatter"] = fig

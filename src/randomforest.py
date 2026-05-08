@@ -120,6 +120,27 @@ def run_random_forest(attribute, n_trees, random_seed=None, _progress_callback=N
 def get_oob_fig(df):
     return px.line(df, x="n trees", y="error rate", title="out-of-bag (OOB) error")
 
+
+def get_feature_importance_fig(df_important_features, n_features):
+    """Return a horizontal bar chart of the top *n_features* by Gini importance."""
+    top = df_important_features.head(n_features).iloc[::-1]  # reverse for horizontal bar
+    fig = px.bar(
+        top,
+        x="importance",
+        y=top.index,
+        orientation="h",
+        template="plotly_white",
+        title=f"Top {n_features} Features by Importance",
+        labels={"importance": "Gini Importance", "y": "Feature"},
+    )
+    fig.update_layout(
+        font={"color": "grey", "size": 12, "family": "Sans"},
+        title={"font_color": "#3E3D53"},
+        yaxis_title="",
+        height=max(400, n_features * 22),
+    )
+    return fig
+
 def classification_report_to_df(report):
     
     # Split the report into lines

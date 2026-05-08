@@ -50,6 +50,10 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         if prev_kruskal_attribute is not None and kruskal_attribute != prev_kruskal_attribute:
             st.session_state.df_kruskal = pd.DataFrame()
             st.session_state.df_dunn = pd.DataFrame()
+            st.session_state.pop("kruskal_attempted_metabolites", None)
+            st.session_state.pop("kruskal_returned_metabolites", None)
+            st.session_state.pop("dunn_attempted_metabolites", None)
+            st.session_state.pop("dunn_returned_metabolites", None)
 
         st.session_state["_prev_kruskal_attribute"] = kruskal_attribute
 
@@ -69,6 +73,10 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         if prev_kruskal_groups is not None and set(kruskal_groups) != set(prev_kruskal_groups):
             st.session_state.df_kruskal = pd.DataFrame()
             st.session_state.df_dunn = pd.DataFrame()
+            st.session_state.pop("kruskal_attempted_metabolites", None)
+            st.session_state.pop("kruskal_returned_metabolites", None)
+            st.session_state.pop("dunn_attempted_metabolites", None)
+            st.session_state.pop("dunn_returned_metabolites", None)
         st.session_state["_prev_kruskal_groups"] = list(kruskal_groups)
 
         min_required = 3
@@ -76,8 +84,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         st.button("Run Kruskal Wallis", key="run_kruskal", type="primary", disabled=run_disabled)
 
-        color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-        st.selectbox("Color significant points by", options=color_by_options, key="kruskal_color_by")
         if st.session_state.run_kruskal:
             if "kruskal_groups" not in st.session_state or len(st.session_state.kruskal_groups) < min_required:
                 st.error(f"At least {min_required} groups must be selected to run Kruskal Wallis.")
@@ -94,8 +100,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         est_left = est_total - elapsed
                     else:
                         est_left = 0
-                    progress_placeholder.progress(progress, text=f"Running Kruskal Wallis: {done}/{total}")
-                    time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                    progress_placeholder.progress(progress, text=f"Running Kruskal-Wallis: metabolite {done} of {total}")
+                    time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
                 st.session_state.df_kruskal = kruskal_wallis(
                     st.session_state.data,
                     st.session_state.kruskal_attribute,
@@ -107,6 +113,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 time_placeholder.empty()
                 st.rerun()
 
+        kruskal_attempted = st.session_state.get("kruskal_attempted_metabolites")
+        kruskal_returned = st.session_state.get("kruskal_returned_metabolites")
+        if kruskal_attempted is not None and kruskal_returned is not None and kruskal_attempted != kruskal_returned:
+            st.warning(
+                f"Kruskal-Wallis attempted {kruskal_attempted} metabolites, but only {kruskal_returned} produced plottable results. "
+                f"{kruskal_attempted - kruskal_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+            )
+
         # KW result sub-tabs
         if st.session_state.df_kruskal is not None and not st.session_state.df_kruskal.empty:
             kw_sub_tabs = st.tabs([
@@ -116,8 +130,11 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             ])
 
             with kw_sub_tabs[0]:
+                color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+                st.selectbox("Color significant points by", options=color_by_options, key="kruskal_color_by")
                 _kw_color = st.session_state.get("kruskal_color_by", "Significance (default)")
-                fig = get_kruskal_plot(st.session_state.df_kruskal, color_by=None if _kw_color == "Significance (default)" else _kw_color)
+                kw_plot_df = filter_top_significant_points_ui(st.session_state.df_kruskal, "kruskal_plot")
+                fig = get_kruskal_plot(kw_plot_df, color_by=None if _kw_color == "Significance (default)" else _kw_color)
                 show_fig(fig, "kruskal")
                 st.session_state["page_figs_kw_plot"] = fig
 
@@ -145,7 +162,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
             with kw_sub_tabs[2]:
                 # Include both significant and insignificant metabolites in dropdown
-                all_metabolites = sorted(list(st.session_state.df_kruskal["metabolite"]))
+                _df_kw = st.session_state.df_kruskal
+                _p_col = next((c for c in ["p-corrected", "p"] if c in _df_kw.columns), None)
+                if _p_col:
+                    all_metabolites = list(_df_kw.sort_values(_p_col)["metabolite"])
+                else:
+                    all_metabolites = sorted(list(_df_kw["metabolite"]))
                 def metabolite_label(m):
                     return str(m).split("&")[0] if "&" in str(m) else str(m)
                 st.selectbox(
@@ -202,10 +224,9 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
             if prev_kruskal_elements is not None and set(dunn_elements) != set(prev_kruskal_elements):
                 st.session_state.df_dunn = pd.DataFrame()
+                st.session_state.pop("dunn_attempted_metabolites", None)
+                st.session_state.pop("dunn_returned_metabolites", None)
             st.session_state["_prev_dunns_options"] = list(dunn_elements)
-
-            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-            c2d.selectbox("Color significant points by", options=color_by_options, key="dunn_color_by")
 
             c1d.button(
                 "Run Dunn's",
@@ -227,8 +248,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         est_left = est_total - elapsed
                     else:
                         est_left = 0
-                    progress_placeholder.progress(progress, text=f"Running Dunn's: {done}/{total}")
-                    time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                    progress_placeholder.progress(progress, text=f"Running Dunn's test: metabolite {done} of {total}")
+                    time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
                 st.session_state.df_dunn = dunn(
                     st.session_state.df_kruskal,
                     st.session_state.kruskal_attribute,
@@ -240,11 +261,21 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 time_placeholder.empty()
                 st.rerun()
 
+            dunn_attempted = st.session_state.get("dunn_attempted_metabolites")
+            dunn_returned = st.session_state.get("dunn_returned_metabolites")
+            if dunn_attempted is not None and dunn_returned is not None and dunn_attempted != dunn_returned:
+                st.warning(
+                    f"Dunn's attempted {dunn_attempted} metabolites, but only {dunn_returned} produced plottable results. "
+                    f"{dunn_attempted - dunn_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+                )
+
             # Dunn result sub-tabs
             if st.session_state.df_dunn is not None and not st.session_state.df_dunn.empty:
                 dunn_sub_tabs = st.tabs(["📈 Dunn's: plots", "📁 Dunn's: result table"])
 
                 with dunn_sub_tabs[0]:
+                    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+                    st.selectbox("Color significant points by", options=color_by_options, key="dunn_color_by")
                     dunn_numeric = getattr(st.session_state.df_dunn, "_original", st.session_state.df_dunn)
                     # Test-statistic style plot (x = rank_sum_diff, y = -log10(p))
                     _dunn_color = st.session_state.get("dunn_color_by", "Significance (default)")

@@ -10,13 +10,25 @@ import time
 def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correction, _progress_callback=None):
     df = pd.concat([st.session_state.data, st.session_state.md], axis=1)
     wilcoxon_results = []
-    columns = list(st.session_state.data.columns)
+    columns = []
+    for col in st.session_state.data.columns:
+        g1 = df[col][df[wilcoxon_attribute] == target_groups[0]].dropna().reset_index(drop=True)
+        g2 = df[col][df[wilcoxon_attribute] == target_groups[1]].dropna().reset_index(drop=True)
+        if min(len(g1), len(g2)) >= 2:
+            columns.append(col)
     total = len(columns)
+    st.session_state.wilcoxon_attempted_metabolites = total
     start_time = None
 
     for idx, col in enumerate(columns):
         if idx == 0:
             start_time = time.time()
+
+        if _progress_callback is not None:
+            elapsed = time.time() - start_time if start_time else 0
+            done = idx + 1
+            est_left = (elapsed / done) * (total - done) if done > 0 else 0
+            _progress_callback(done, total, est_left)
 
         group1 = df[col][df[wilcoxon_attribute] == target_groups[0]].reset_index(drop=True)
         group2 = df[col][df[wilcoxon_attribute] == target_groups[1]].reset_index(drop=True)
@@ -41,17 +53,13 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
         result["median(B)"] = median2
         wilcoxon_results.append(result)
 
-        if _progress_callback is not None:
-            elapsed = time.time() - start_time if start_time else 0
-            done = idx + 1
-            est_left = (elapsed / done) * (total - done) if done > 0 else 0
-            _progress_callback(done, total, est_left)
-
     if not wilcoxon_results:
+        st.session_state.wilcoxon_returned_metabolites = 0
         return pd.DataFrame()
 
     wilcoxon_df = pd.concat(wilcoxon_results).set_index("metabolite")
     wilcoxon_df = wilcoxon_df.dropna(subset=["p-val"])
+    st.session_state.wilcoxon_returned_metabolites = len(wilcoxon_df)
 
     wilcoxon_df.insert(4, "p-corrected", pg.multicomp(wilcoxon_df["p-val"].astype(float), method=p_correction)[1])
     wilcoxon_df.insert(5, "significance", wilcoxon_df["p-corrected"] < 0.05)
@@ -87,7 +95,12 @@ def plot_wilcoxon(df, color_by=None):
     if color_by is not None:
         from src.utils import compute_dominant_groups
         sig_mets = list(df[df["significance"]].index)
-        dominant_map, all_groups = compute_dominant_groups(sig_mets, color_by)
+        dominant_map, all_groups = compute_dominant_groups(
+            sig_mets,
+            color_by,
+            sample_filter_column=st.session_state.get("wilcoxon_attribute"),
+            sample_filter_values=st.session_state.get("wilcoxon_options"),
+        )
         df["sig_label"] = df.apply(
             lambda row: dominant_map.get(row.name, "insignificant") if row["significance"] else "insignificant",
             axis=1

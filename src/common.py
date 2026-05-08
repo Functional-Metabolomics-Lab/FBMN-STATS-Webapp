@@ -14,6 +14,7 @@ dataframe_names = ("md",
                    "ft_with_annotations",
                    "df_anova",
                    "df_tukey",
+                   "df_rm_anova",
                    "df_ttest",
                    "df_kruskal",
                    "df_dunn",
@@ -266,6 +267,58 @@ def show_fig(fig, download_name, container_width=True):
             },
         },
     )
+
+
+def filter_top_significant_points_ui(df, key_prefix, *, min_n=5, max_n=100, default_n=25):
+    """Optionally filter a results DataFrame to the top-N most significant rows.
+
+    Significance ranking is based on the first available p-value column in:
+    p-corrected, p-val, p, stats_p.
+    """
+    if df is None or len(df) == 0:
+        return df
+
+    checkbox_key = f"{key_prefix}_top_sig_enabled"
+    slider_key = f"{key_prefix}_top_sig_n"
+
+    st.checkbox(
+        "Show top most significant points",
+        value=False,
+        key=checkbox_key,
+        help="When checked, show only the most significant points on the plot.",
+    )
+
+    if not st.session_state.get(checkbox_key, False):
+        return df
+
+    p_col = next((c for c in ["p-corrected", "p-val", "p", "stats_p"] if c in df.columns), None)
+    if p_col is None:
+        st.info("No p-value column was found to rank significance. Showing all points.")
+        return df
+
+    total_rows = len(df)
+    slider_max = min(max_n, total_rows)
+    if slider_max <= 0:
+        return df
+
+    slider_min = min_n if slider_max >= min_n else 1
+    slider_default = min(default_n, slider_max)
+    if slider_default < slider_min:
+        slider_default = slider_min
+
+    top_n = st.slider(
+        "Number of most significant points to show",
+        min_value=slider_min,
+        max_value=slider_max,
+        value=slider_default,
+        key=slider_key,
+    )
+
+    ranked = df.copy()
+    ranked[p_col] = pd.to_numeric(ranked[p_col], errors="coerce")
+    ranked = ranked.sort_values(p_col, ascending=True, na_position="last").head(top_n)
+    st.caption(f"Showing top {len(ranked)} points ranked by {p_col}.")
+    return ranked
 
 def download_plotly_figure(fig, filename="", col=""):
     buffer = io.BytesIO()

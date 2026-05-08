@@ -26,14 +26,21 @@ def permanova_pcoa(scaled, distance_metric, attribute):
 
 
 # can not hash pcoa
-def get_pcoa_scatter_plot(pcoa, md_samples, attribute, pcoa_x_axis, pcoa_y_axis):
+def get_pcoa_scatter_plot(pcoa, md_samples, color_attribute, pcoa_x_axis, pcoa_y_axis, shape_map=None, symbol_attribute=None):
     df = pcoa.samples[[pcoa_x_axis, pcoa_y_axis]]
+
+    cols_to_merge = [color_attribute]
+    if symbol_attribute and symbol_attribute != color_attribute:
+        cols_to_merge.append(symbol_attribute)
+
     df = pd.merge(
         df[[pcoa_x_axis, pcoa_y_axis]],
-        md_samples[attribute].apply(str),
+        md_samples[cols_to_merge].apply(lambda c: c.apply(str)),
         left_index=True,
         right_index=True,
     )
+
+    symbol_col = symbol_attribute if symbol_attribute else color_attribute
 
     title = f"PRINCIPAL COORDINATE ANALYSIS"
     fig = px.scatter(
@@ -43,7 +50,9 @@ def get_pcoa_scatter_plot(pcoa, md_samples, attribute, pcoa_x_axis, pcoa_y_axis)
         template="plotly_white",
         width=600,
         height=400,
-        color=attribute,
+        color=color_attribute,
+        symbol=symbol_col,
+        symbol_map=shape_map if shape_map else None,
         hover_name=df.index,
     )
 

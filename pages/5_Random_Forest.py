@@ -108,8 +108,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             start_time = time.time()
             def progress_callback(done, total, est_left):
                 progress = done / total
-                progress_placeholder.progress(progress, text=f"Running Random Forest: {done}/{total}")
-                time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                progress_placeholder.progress(progress, text=f"Fitting Random Forest model: step {done} of {total}")
+                time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
             df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy = run_random_forest(st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed, _progress_callback=progress_callback)
             progress_placeholder.empty()
             time_placeholder.empty()
@@ -160,24 +160,44 @@ to reducing impurity across all trees in the forest.
 - Gini importance can be **biased toward high-cardinality features** (features with many unique values).  
 - Importance values sum to 1.0 across all features.
             """)
-        df_imp = st.session_state.df_important_features.copy()
-        def sci_notation_or_plain(x):
-            try:
-                if pd.isnull(x):
+
+        fi_tab1, fi_tab2 = st.tabs(["📁 Table", "📊 Plot"])
+
+        with fi_tab1:
+            df_imp = st.session_state.df_important_features.copy()
+            def sci_notation_or_plain(x):
+                try:
+                    if pd.isnull(x):
+                        return x
+                    if float(x) == 0:
+                        return 0
+                    return f"{x:.2e}"
+                except Exception:
                     return x
-                if float(x) == 0:
-                    return 0
-                return f"{x:.2e}"
-            except Exception:
-                return x
-        style_dict = {}
-        if "importance" in df_imp.columns:
-            style_dict["importance"] = sci_notation_or_plain
-        if style_dict:
-            styled = df_imp.style.format(style_dict)
-            st.dataframe(styled, use_container_width=True)
-        else:
-            st.dataframe(df_imp, use_container_width=True)
+            style_dict = {}
+            if "importance" in df_imp.columns:
+                style_dict["importance"] = sci_notation_or_plain
+            if style_dict:
+                styled = df_imp.style.format(style_dict)
+                st.dataframe(styled, use_container_width=True)
+            else:
+                st.dataframe(df_imp, use_container_width=True)
+
+        with fi_tab2:
+            total_features = len(st.session_state.df_important_features)
+            max_slider = min(100, total_features)
+            default_val = min(20, max_slider)
+            n_features = st.slider(
+                "Number of top features to display",
+                min_value=5,
+                max_value=max_slider,
+                value=default_val,
+                step=1,
+                key="rf_n_features_plot",
+            )
+            fig = get_feature_importance_fig(st.session_state.df_important_features, n_features)
+            show_fig(fig, "feature-importance")
+            st.session_state["page_figs_rf_importance"] = fig
     with tabs[2]:  # Classification Report
         with st.expander("ℹ️ About Classification Report"):
             st.markdown("""

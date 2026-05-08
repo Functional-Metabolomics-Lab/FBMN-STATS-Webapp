@@ -2,6 +2,12 @@ import streamlit as st
 from src.common import *
 from src.pca import *
 
+PLOTLY_SHAPES = [
+    "circle", "square", "diamond", "cross", "x",
+    "triangle-up", "triangle-down", "star", "pentagon", "hexagon",
+    "hexagram", "hourglass", "bowtie", "diamond-tall", "diamond-wide",
+]
+
 page_setup()
 st.session_state["current_page"] = "PCA"
 
@@ -40,20 +46,32 @@ def advanced_filtering(attribute_col, all_categories, md_all):
         st.warning("⚠️ At least one category must be selected.")
 
     selections = {}
+    shape_selections = {}
     if selected_cats:
-        header_cat, header_samp = st.columns([1, 4])
+        header_cat, header_samp, header_shape = st.columns([1, 3, 1])
         header_cat.markdown("**Category**")
         header_samp.markdown("**Samples**")
-        for cat in selected_cats:
+        header_shape.markdown("**Shape**")
+        committed_shapes = st.session_state.get("pca_committed_shapes", {})
+        for ci, cat in enumerate(selected_cats):
             cat_samples = list(md_all[md_all[attribute_col] == cat].index)
             key = f"adv_samples_{attribute_col}_{cat}"
-            c_cat, c_samp = st.columns([1, 4])
+            c_cat, c_samp, c_shape = st.columns([1, 3, 1])
             c_cat.write(str(cat))
             selections[cat] = c_samp.multiselect(
                 f"Samples for {cat}",
                 options=cat_samples,
                 default=cat_samples,
                 key=key,
+                label_visibility="collapsed",
+            )
+            default_shape = committed_shapes.get(str(cat), "circle")
+            default_idx = PLOTLY_SHAPES.index(default_shape) if default_shape in PLOTLY_SHAPES else 0
+            shape_selections[str(cat)] = c_shape.selectbox(
+                f"Shape for {cat}",
+                options=PLOTLY_SHAPES,
+                index=default_idx,
+                key=f"adv_shape_{attribute_col}_{cat}",
                 label_visibility="collapsed",
             )
 
@@ -66,14 +84,19 @@ def advanced_filtering(attribute_col, all_categories, md_all):
             committed_samps = list(md_all[md_all[attribute_col].isin(committed_cats)].index)
         st.session_state["pca_committed_categories"] = committed_cats
         st.session_state["pca_committed_samples"] = committed_samps
+        st.session_state["pca_committed_shapes"] = dict(shape_selections)
+        # Keep coloring aligned with the applied filtering attribute.
+        st.session_state["pca_color_by"] = attribute_col
         st.session_state["pca_filter_applied"] = True
         st.rerun()
 
     # Compare current selections to committed to detect unsaved changes
     committed_cats = st.session_state.get("pca_committed_categories", all_categories)
     committed_samps = set(st.session_state.get("pca_committed_samples", list(md_all.index)))
+    committed_shapes = st.session_state.get("pca_committed_shapes", {})
     current_samps = set(s for cat_samps in selections.values() for s in cat_samps)
-    is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps
+    current_shapes = dict(shape_selections) if shape_selections else {}
+    is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps or current_shapes != committed_shapes
 
     if is_dirty:
         st.warning("⚠️ Unsaved changes - click Done to apply.")
@@ -109,6 +132,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         st.session_state["pca_committed_categories"] = all_categories
     if "pca_committed_samples" not in st.session_state:
         st.session_state["pca_committed_samples"] = list(all_md.index)
+    if "pca_color_by" not in st.session_state or st.session_state["pca_color_by"] not in st.session_state.md.columns:
+        st.session_state["pca_color_by"] = attribute_col
 
     # Reset if committed categories are no longer valid (e.g. attribute changed)
     if not set(st.session_state["pca_committed_categories"]).issubset(set(all_categories)):
@@ -157,19 +182,28 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         with col3:
             pca_color_by = st.selectbox("Color by", st.session_state.md.columns, key="pca_color_by")
 
+        if attribute_col == pca_color_by:
+            st.info("ℹ️ The **filter by** and **color by** categories are the same — the plot will be organized by that single metadata category.")
+        else:
+            st.info(f"ℹ️ The **filter by** (*{attribute_col}*) and **color by** (*{pca_color_by}*) categories differ — points will be filtered and shaped by *{attribute_col}*, but colored by *{pca_color_by}*, creating subgroups.")
+
         # Tabs for outputs
         if pca_x_axis == pca_y_axis:
             st.warning("⚠️ X-Axis and Y-Axis cannot be the same! Please choose different axes to view results.")
         else:
             t1, t2, t3 = st.tabs(["📈 PCA Scores Plot", "📊 Explained variance", "📁 Data"])
             with t1:
+                shape_map = st.session_state.get("pca_committed_shapes", {})
+                shape_map_tuple = tuple(sorted(shape_map.items())) if shape_map else None
                 fig = get_pca_scatter_plot(
                     pca_df,
                     pca_variance,
                     pca_color_by,
                     st.session_state.md.loc[md_filtered.index],
                     pca_x_axis,
-                    pca_y_axis
+                    pca_y_axis,
+                    shape_map_tuple,
+                    symbol_attribute=attribute_col,
                 )
                 show_fig(fig, "principal-component-analysis")
                 st.session_state["page_figs_pca_scores"] = fig

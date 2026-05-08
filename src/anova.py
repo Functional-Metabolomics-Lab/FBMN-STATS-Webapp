@@ -113,9 +113,26 @@ def anova(df, attribute, correction, elements, _progress_callback=None):
     if elements is not None:
         combined = combined[combined[attribute].isin(elements)]
 
-    results = list(gen_anova_data(combined, df.columns, attribute, _progress_callback=_progress_callback))
+    target_groups = list(elements) if elements is not None else list(combined[attribute].dropna().unique())
+    if not target_groups:
+        st.session_state.anova_attempted_metabolites = 0
+        st.session_state.anova_returned_metabolites = 0
+        return pd.DataFrame(columns=["p", "F", "p-corrected", "significant"])
+
+    valid_metabolites = []
+    for col in df.columns:
+        tmp = combined[[attribute, col]].dropna(subset=[attribute, col])
+        if tmp.empty:
+            continue
+        present_groups = set(tmp[attribute].astype(str).unique())
+        if all(str(g) in present_groups for g in target_groups):
+            valid_metabolites.append(col)
+
+    st.session_state.anova_attempted_metabolites = len(valid_metabolites)
+    results = list(gen_anova_data(combined, valid_metabolites, attribute, _progress_callback=_progress_callback))
     df_res = pd.DataFrame(results, columns=["metabolite", "p", "F"])
     df_res = df_res.dropna()
+    st.session_state.anova_returned_metabolites = len(df_res)
     df_res = add_p_correction_to_anova(df_res, correction)
     return df_res.set_index("metabolite")
 
@@ -161,7 +178,12 @@ def get_anova_plot(anova, color_by=None):
     if not sig.empty:
         if color_by is not None:
             from src.utils import compute_dominant_groups
-            dominant_map, all_groups = compute_dominant_groups(list(sig.index), color_by)
+            dominant_map, all_groups = compute_dominant_groups(
+                list(sig.index),
+                color_by,
+                sample_filter_column=st.session_state.get("anova_attribute"),
+                sample_filter_values=st.session_state.get("anova_groups"),
+            )
             colors = px.colors.qualitative.Plotly
             for gi, group in enumerate(all_groups):
                 group_sig = sig[sig.index.map(lambda m, g=group: dominant_map.get(m) == g)]
@@ -276,6 +298,13 @@ def gen_pairwise_tukey(df, _metabolites, attribute, _progress_callback=None):
     start_time = time.time()
 
     for idx, metabolite in enumerate(_metabolites):
+        if _progress_callback is not None:
+            elapsed = time.time() - start_time
+            avg_time = elapsed / (idx + 1)
+            est_total = avg_time * total
+            est_left = max(0, est_total - elapsed)
+            _progress_callback(idx + 1, total, est_left)
+
         try:
             tukey = pg.pairwise_tukey(df, dv=metabolite, between=attribute)
         except Exception as e:
@@ -283,13 +312,6 @@ def gen_pairwise_tukey(df, _metabolites, attribute, _progress_callback=None):
 
         if tukey.empty:
             continue
-
-        if _progress_callback is not None:
-            elapsed = time.time() - start_time
-            avg_time = elapsed / (idx + 1)
-            est_total = avg_time * total
-            est_left = max(0, est_total - elapsed)
-            _progress_callback(idx + 1, total, est_left)
         results.append(
             (
             metabolite,
@@ -322,8 +344,21 @@ def tukey(df, attribute, elements, correction, _progress_callback=None):
         anova_mets = df.index.astype(str).tolist()
 
     valid_metabolites = [m for m in anova_mets if m in st.session_state.data.columns]
+    if elements is not None:
+        md_attr = st.session_state.md.loc[:, attribute]
+        filtered_valid = []
+        for m in valid_metabolites:
+            tmp = pd.concat([st.session_state.data.loc[:, m], md_attr], axis=1)
+            tmp = tmp[tmp[attribute].isin(elements)]
+            tmp = tmp.dropna(subset=[m, attribute])
+            present_groups = set(tmp[attribute].astype(str).unique())
+            if all(str(g) in present_groups for g in elements):
+                filtered_valid.append(m)
+        valid_metabolites = filtered_valid
+    st.session_state.tukey_attempted_metabolites = len(valid_metabolites)
 
     if not valid_metabolites:
+        st.session_state.tukey_returned_metabolites = 0
         # nothing to run Tukey on
         return pd.DataFrame()
 
@@ -341,6 +376,7 @@ def tukey(df, attribute, elements, correction, _progress_callback=None):
     )
 
     tukey = tukey.dropna()
+    st.session_state.tukey_returned_metabolites = len(tukey)
     tukey = add_p_value_correction_to_tukeys(tukey, correction)
 
     tukey = tukey.rename(columns={ "stats_metabolite": "metabolite", "stats_p": "p", "stats_significant": "significant"})
@@ -412,7 +448,12 @@ def get_tukey_teststat_plot(df, color_by=None):
         sig_numeric = p_numeric[sig.index]
         if color_by is not None:
             from src.utils import compute_dominant_groups
-            dominant_map, all_groups = compute_dominant_groups(list(sig["metabolite"]), color_by)
+            dominant_map, all_groups = compute_dominant_groups(
+                list(sig["metabolite"]),
+                color_by,
+                sample_filter_column=st.session_state.get("anova_attribute"),
+                sample_filter_values=st.session_state.get("tukey_elements"),
+            )
             colors = px.colors.qualitative.Plotly
             for gi, group in enumerate(all_groups):
                 group_mask = sig["metabolite"].map(lambda m, g=group: dominant_map.get(m) == g)

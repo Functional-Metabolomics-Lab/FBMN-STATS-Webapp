@@ -12,10 +12,10 @@ from src.utils import get_feature_name_map
 def gen_kruskal_data(group_data, _progress_callback=None):
     total = len(group_data[0].columns)
     for idx, col in enumerate(group_data[0].columns):
+        if _progress_callback is not None:
+            _progress_callback(idx + 1, total, max(0, total - (idx + 1)))
         try:
             statistic, p = kruskal(*[df[col] for df in group_data])
-            if _progress_callback is not None:
-                _progress_callback(idx + 1, total, max(0, total - (idx + 1)))
             yield col, p, statistic
         except ValueError:
             continue
@@ -36,8 +36,25 @@ def kruskal_wallis(df, attribute, correction, elements, _progress_callback=None)
     combined = pd.concat([df, st.session_state.md], axis=1)
     if elements is not None:
         combined = combined[combined[attribute].isin(elements)]
-    groups = combined[attribute].unique()
-    metabolite_cols = list(st.session_state.data.columns)
+    groups = combined[attribute].dropna().unique()
+    if len(groups) == 0:
+        st.session_state.kruskal_attempted_metabolites = 0
+        st.session_state.kruskal_returned_metabolites = 0
+        return pd.DataFrame(columns=["metabolite", "p", "statistic", "p-corrected", "significant"])
+
+    metabolite_cols = []
+    for col in st.session_state.data.columns:
+        tmp = combined[[attribute, col]].dropna(subset=[attribute, col])
+        if tmp.empty:
+            continue
+        present_groups = set(tmp[attribute].astype(str).unique())
+        if all(str(g) in present_groups for g in groups):
+            metabolite_cols.append(col)
+    st.session_state.kruskal_attempted_metabolites = len(metabolite_cols)
+
+    if not metabolite_cols:
+        st.session_state.kruskal_returned_metabolites = 0
+        return pd.DataFrame(columns=["metabolite", "p", "statistic", "p-corrected", "significant"])
     group_data = [combined[combined[attribute] == group].loc[:, metabolite_cols] for group in groups]
 
     df = pd.DataFrame(
@@ -49,6 +66,7 @@ def kruskal_wallis(df, attribute, correction, elements, _progress_callback=None)
     df = df.dropna()
     df = add_p_correction_to_kruskal(df, correction)
     df = df[df["metabolite"] != attribute]
+    st.session_state.kruskal_returned_metabolites = len(df)
     return df
 
 @st.cache_resource
@@ -99,7 +117,12 @@ def get_kruskal_plot(kruskal, color_by=None):
     ))
     if color_by is not None:
         from src.utils import compute_dominant_groups
-        dominant_map, all_groups = compute_dominant_groups(list(sig["metabolite"]), color_by)
+        dominant_map, all_groups = compute_dominant_groups(
+            list(sig["metabolite"]),
+            color_by,
+            sample_filter_column=st.session_state.get("kruskal_attribute"),
+            sample_filter_values=st.session_state.get("kruskal_groups"),
+        )
         colors = px.colors.qualitative.Plotly
         for gi, group in enumerate(all_groups):
             group_sig = sig[sig["metabolite"].map(lambda m, g=group: dominant_map.get(m) == g)]
@@ -145,6 +168,9 @@ def get_metabolite_boxplot(kruskal, metabolite):
     attribute = st.session_state.kruskal_attribute
     p_value = kruskal.set_index("metabolite")._get_value(metabolite, "p-corrected")
     df = pd.concat([st.session_state.data, st.session_state.md], axis=1)[[attribute, metabolite]].copy()
+
+    if "kruskal_groups" in st.session_state and st.session_state.kruskal_groups:
+        df = df[df[attribute].isin(st.session_state.kruskal_groups)]
 
     # Add filename column if available
     df = df.reset_index().rename(columns={"index": "filename"})
@@ -215,6 +241,19 @@ def dunn(df, attribute, elements, correction, _progress_callback=None):
     # metabolites we actually have in the data matrix
     all_metabolites = df["metabolite"]
     valid_metabolites = [m for m in all_metabolites if m in st.session_state.data.columns]
+
+    md_attr = st.session_state.md.loc[:, attribute]
+    filtered_valid = []
+    for m in valid_metabolites:
+        tmp = pd.concat([st.session_state.data.loc[:, m], md_attr], axis=1)
+        tmp = tmp[tmp[attribute].isin(elements)]
+        tmp = tmp.dropna(subset=[m, attribute])
+        present_groups = set(tmp[attribute].astype(str).unique())
+        if all(str(g) in present_groups for g in elements):
+            filtered_valid.append(m)
+    valid_metabolites = filtered_valid
+
+    st.session_state.dunn_attempted_metabolites = len(valid_metabolites)
 
     # build the full frame = intensities + grouping column
     full_df = pd.concat(
@@ -290,6 +329,9 @@ def dunn(df, attribute, elements, correction, _progress_callback=None):
 
     # make dataframe
     dunn_df = pd.DataFrame(results)
+    if dunn_df.empty:
+        st.session_state.dunn_returned_metabolites = 0
+        return dunn_df
 
     # global p-correction (only if user asked)
     dunn_df["p"] = pd.to_numeric(dunn_df["p"], errors="coerce")
@@ -305,6 +347,7 @@ def dunn(df, attribute, elements, correction, _progress_callback=None):
 
     dunn_df["significant"] = dunn_df[pcol] < 0.05
     dunn_df = dunn_df.sort_values(pcol)
+    st.session_state.dunn_returned_metabolites = len(dunn_df.dropna(subset=["p"]))
 
     st.session_state.dunn_n = len(dunn_df)
     # keep numeric copy
@@ -435,7 +478,12 @@ def get_dunn_teststat_plot(df, color_by=None):
     if not sig.empty:
         if color_by is not None:
             from src.utils import compute_dominant_groups
-            dominant_map, all_groups = compute_dominant_groups(list(sig[met_col]), color_by)
+            dominant_map, all_groups = compute_dominant_groups(
+                list(sig[met_col]),
+                color_by,
+                sample_filter_column=st.session_state.get("kruskal_attribute"),
+                sample_filter_values=st.session_state.get("dunn_elements"),
+            )
             colors = px.colors.qualitative.Plotly
             for gi, group in enumerate(all_groups):
                 group_mask = sig[met_col].map(lambda m, g=group: dominant_map.get(m) == g)

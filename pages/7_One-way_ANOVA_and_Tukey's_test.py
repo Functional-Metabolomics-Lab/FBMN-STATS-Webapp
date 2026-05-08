@@ -47,6 +47,10 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         if prev_anova_attribute is not None and anova_attribute != prev_anova_attribute:
             st.session_state.df_anova = pd.DataFrame()
             st.session_state.df_tukey = pd.DataFrame()
+            st.session_state.pop("anova_attempted_metabolites", None)
+            st.session_state.pop("anova_returned_metabolites", None)
+            st.session_state.pop("tukey_attempted_metabolites", None)
+            st.session_state.pop("tukey_returned_metabolites", None)
 
         st.session_state["_prev_anova_attribute"] = anova_attribute
 
@@ -71,6 +75,10 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         if prev_anova_groups is not None and set(anova_groups) != set(prev_anova_groups):
             st.session_state.df_anova = pd.DataFrame()
             st.session_state.df_tukey = pd.DataFrame()
+            st.session_state.pop("anova_attempted_metabolites", None)
+            st.session_state.pop("anova_returned_metabolites", None)
+            st.session_state.pop("tukey_attempted_metabolites", None)
+            st.session_state.pop("tukey_returned_metabolites", None)
         st.session_state["_prev_anova_groups"] = list(anova_groups)
 
         min_required = 3
@@ -78,8 +86,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         st.button("Run ANOVA", key="run_anova", type="primary", disabled=run_disabled)
 
-        color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-        st.selectbox("Color significant points by", options=color_by_options, key="anova_color_by")
         if st.session_state.run_anova:
             if "anova_groups" not in st.session_state or len(st.session_state.anova_groups) < min_required:
                 st.error(f"At least {min_required} groups must be selected to run ANOVA.")
@@ -89,8 +95,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 time_placeholder = st.empty()
                 def progress_callback(done, total, est_left):
                     progress = done / total
-                    progress_placeholder.progress(progress, text=f"Running ANOVA: {done}/{total}")
-                    time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                    progress_placeholder.progress(progress, text=f"Running ANOVA: metabolite {done} of {total}")
+                    time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
                 st.session_state.df_anova = anova(
                     st.session_state.data,
                     st.session_state.anova_attribute,
@@ -102,6 +108,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 time_placeholder.empty()
                 st.rerun()
 
+        attempted = st.session_state.get("anova_attempted_metabolites")
+        returned = st.session_state.get("anova_returned_metabolites")
+        if attempted is not None and returned is not None and attempted != returned:
+            st.warning(
+                f"ANOVA attempted {attempted} metabolites, but only {returned} produced plottable results. "
+                f"{attempted - returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+            )
+
         # ANOVA result sub-tabs
         if st.session_state.df_anova is not None and not st.session_state.df_anova.empty:
             anova_sub_tabs = st.tabs([
@@ -111,8 +125,11 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             ])
 
             with anova_sub_tabs[0]:
+                color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+                st.selectbox("Color significant points by", options=color_by_options, key="anova_color_by")
                 _anova_color = st.session_state.get("anova_color_by", "Significance (default)")
-                fig = get_anova_plot(st.session_state.df_anova, color_by=None if _anova_color == "Significance (default)" else _anova_color)
+                anova_plot_df = filter_top_significant_points_ui(st.session_state.df_anova, "anova_plot")
+                fig = get_anova_plot(anova_plot_df, color_by=None if _anova_color == "Significance (default)" else _anova_color)
                 show_fig(fig, "anova")
                 st.session_state["page_figs_anova_plot"] = fig
 
@@ -155,7 +172,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 else:
                     candidates = list(st.session_state.df_anova.index)
 
-                candidates.sort()
+                _p_col = next((c for c in ["p-corrected", "p"] if c in st.session_state.df_anova.columns), None)
+                if _p_col:
+                    _sorted_idx = list(st.session_state.df_anova.sort_values(_p_col).index)
+                    candidates = [m for m in _sorted_idx if m in set(candidates)]
+                else:
+                    candidates.sort()
                 def metabolite_label(m):
                     return str(m).split("&")[0] if "&" in str(m) else str(m)
                 st.selectbox(
@@ -211,11 +233,10 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             # if user changed groups, clear old results
             if prev_tukey_elements is not None and set(tukey_elements) != set(prev_tukey_elements):
                 st.session_state.df_tukey = pd.DataFrame()
+                st.session_state.pop("tukey_attempted_metabolites", None)
+                st.session_state.pop("tukey_returned_metabolites", None)
             st.session_state["_prev_tukeys_options"] = list(tukey_elements)
             st.session_state.tukey_elements = tukey_elements
-
-            color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
-            c2t.selectbox("Color significant points by", options=color_by_options, key="tukey_color_by")
 
             run_btn = c1t.button(
                 "Run Tukey's",
@@ -230,8 +251,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
                 def progress_callback(done, total, est_left):
                     progress = done / total
-                    progress_placeholder.progress(progress, text=f"Running Tukey's: {done}/{total}")
-                    time_placeholder.info(f"Estimated time left: {int(est_left)} seconds")
+                    progress_placeholder.progress(progress, text=f"Running Tukey's test: metabolite {done} of {total}")
+                    time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
 
                 st.session_state.df_tukey = tukey(
                     st.session_state.df_anova,
@@ -245,11 +266,21 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 time_placeholder.empty()
                 st.rerun()
 
+            tukey_attempted = st.session_state.get("tukey_attempted_metabolites")
+            tukey_returned = st.session_state.get("tukey_returned_metabolites")
+            if tukey_attempted is not None and tukey_returned is not None and tukey_attempted != tukey_returned:
+                st.warning(
+                    f"Tukey's attempted {tukey_attempted} metabolites, but only {tukey_returned} produced plottable results. "
+                    f"{tukey_attempted - tukey_returned} metabolite(s) were skipped because valid test outputs could not be computed for the selected filters."
+                )
+
             # Tukey result sub-tabs
             if st.session_state.df_tukey is not None and not st.session_state.df_tukey.empty:
                 tukey_sub_tabs = st.tabs(["📈 Tukey's: plots", "📁 Tukey's: result table"])
 
                 with tukey_sub_tabs[0]:
+                    color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
+                    st.selectbox("Color significant points by", options=color_by_options, key="tukey_color_by")
                     _tukey_color = st.session_state.get("tukey_color_by", "Significance (default)")
                     fig1 = get_tukey_teststat_plot(getattr(st.session_state.df_tukey, '_original', st.session_state.df_tukey), color_by=None if _tukey_color == "Significance (default)" else _tukey_color)
                     show_fig(fig1, "tukeys-teststat")
