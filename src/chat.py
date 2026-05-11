@@ -1,8 +1,10 @@
 import os
-import requests
 import json
 import base64
 import io
+
+from google import genai
+from google.genai import types
 
 import pandas as pd
 import streamlit as st
@@ -60,7 +62,11 @@ def build_analysis_context_summary():
 		parts.append("Current parameter settings:\n" + "\n".join("- " + p for p in param_summary))
 
 	# Look for important dataframes and include snippets
-	important_df_keys = ["df_anova", "df_ttest", "df_kruskal", "df_important_features", "df_tukey", "df_dunn", "permanova"]
+	important_df_keys = [
+		"df_anova", "df_ttest", "df_kruskal", "df_important_features",
+		"df_tukey", "df_dunn", "permanova",
+		"df_rm_anova", "df_oob", "df_wilcoxon", "df_friedman", "df_mwu",
+	]
 	for key in important_df_keys:
 		df = st.session_state.get(key)
 		if isinstance(df, pd.DataFrame) and not df.empty:
@@ -166,13 +172,47 @@ _PAGE_FIGURE_KEYS = {
 	"Parametric Assumptions Evaluation": ["pae_normality_fig", "pae_variance_fig"],
 	"PCA": ["page_figs_pca_scores", "page_figs_pca_scree"],
 	"PERMANOVA & PCoA": ["page_figs_pcoa_scatter", "page_figs_pcoa_variance"],
-	"Random Forest": ["page_figs_rf_oob"],
+	"Hierarchical Clustering & Heatmap": ["cluster_fig"],
+	"Random Forest": ["page_figs_rf_oob", "page_figs_rf_importance"],
 	"ANOVA & Tukey's": ["page_figs_anova_plot", "page_figs_anova_boxplot", "page_figs_tukey_teststat", "page_figs_tukey_volcano"],
 	"T-test": ["page_figs_ttest_sig", "page_figs_ttest_volcano", "page_figs_ttest_boxplot"],
 	"Kruskal-Wallis & Dunn's": ["page_figs_kw_plot", "page_figs_kw_boxplot", "page_figs_dunn_teststat", "page_figs_dunn_volcano"],
 	"Mann-Whitney U": ["page_figs_mwu_sig", "page_figs_mwu_boxplot"],
 	"Wilcoxon Signed-Rank": ["page_figs_wilcoxon_sig", "page_figs_wilcoxon_boxplot"],
 	"Friedman": ["page_figs_friedman_plot", "page_figs_friedman_boxplot"],
+}
+
+_PAGE_TABLE_KEYS = {
+	"ANOVA & Tukey's": [
+		("df_anova", "ANOVA results"),
+		("df_tukey", "Tukey's post-hoc results"),
+	],
+	"T-test": [
+		("df_ttest", "T-test results"),
+	],
+	"Kruskal-Wallis & Dunn's": [
+		("df_kruskal", "Kruskal-Wallis results"),
+		("df_dunn", "Dunn's post-hoc results"),
+	],
+	"Mann-Whitney U": [
+		("df_mwu", "Mann-Whitney U results"),
+	],
+	"Wilcoxon Signed-Rank": [
+		("df_wilcoxon", "Wilcoxon Signed-Rank results"),
+	],
+	"Friedman": [
+		("df_friedman", "Friedman test results"),
+	],
+	"Random Forest": [
+		("df_important_features", "Feature importances"),
+		("df_oob", "OOB error rates"),
+	],
+	"PERMANOVA & PCoA": [
+		("permanova", "PERMANOVA statistics"),
+	],
+	"Repeated Measures ANOVA": [
+		("df_rm_anova", "Repeated Measures ANOVA results"),
+	],
 }
 
 def _figure_to_base64(fig):
@@ -185,6 +225,56 @@ def _figure_to_base64(fig):
 		return base64.b64encode(img_bytes).decode("utf-8")
 	except Exception as e:
 		print("Error converting figure to image: %s" % e)
+		return None
+
+
+def _dataframe_to_base64(df, title=""):
+	"""Render a DataFrame as a Plotly table and return a base64 PNG string."""
+	if df is None or (hasattr(df, "empty") and df.empty):
+		return None
+	try:
+		import plotly.graph_objects as go
+		import plotly.io as pio
+
+		display_df = df.head(25).reset_index()
+		header_vals = ["<b>%s</b>" % str(c) for c in display_df.columns]
+		cell_vals = [display_df[col].astype(str).tolist() for col in display_df.columns]
+
+		fig = go.Figure(data=[go.Table(
+			header=dict(
+				values=header_vals,
+				fill_color="#3E3D53",
+				font=dict(color="white", size=11),
+				align="left",
+				height=30,
+			),
+			cells=dict(
+				values=cell_vals,
+				fill_color=[["#f5f5f7" if i % 2 == 0 else "white" for i in range(len(display_df))] for _ in cell_vals],
+				font=dict(color="#333", size=10),
+				align="left",
+				height=24,
+			),
+		)])
+
+		n_rows = len(display_df)
+		height = max(150, min(900, 70 + n_rows * 26))
+		n_cols = len(display_df.columns)
+		width = max(300, min(1400, n_cols * 130))
+
+		title_text = title
+		if title and len(df) > 25:
+			title_text = "%s (top 25 of %d rows)" % (title, len(df))
+
+		fig.update_layout(
+			margin=dict(l=5, r=5, t=40 if title_text else 5, b=5),
+			title={"text": title_text, "font": {"color": "#3E3D53", "size": 13}} if title_text else None,
+		)
+
+		img_bytes = pio.to_image(fig, format="png", width=width, height=height)
+		return base64.b64encode(img_bytes).decode("utf-8")
+	except Exception as e:
+		print("Error converting dataframe to image: %s" % e)
 		return None
 
 def get_last_figure_base64():
@@ -203,6 +293,37 @@ def get_all_figures_base64():
 		b64 = get_last_figure_base64()
 		if b64:
 			images.append(b64)
+	return images
+
+
+def get_all_tables_base64():
+	"""Collect base64 PNG images of all tables relevant to the current page."""
+	images = []
+	page = get_current_page_name()
+	seen_titles = set()
+
+	# Session-state-keyed result tables for the current page
+	for key, title in _PAGE_TABLE_KEYS.get(page, []):
+		df = st.session_state.get(key)
+		if isinstance(df, pd.DataFrame) and not df.empty:
+			b64 = _dataframe_to_base64(df, title=title)
+			if b64:
+				images.append(b64)
+				seen_titles.add(title)
+
+	# Tables shown via show_table() on the current page (covers transient tables)
+	for entry in st.session_state.get("_shown_tables", []):
+		if entry.get("page") == page:
+			title = entry.get("title", "")
+			if title in seen_titles:
+				continue  # already included via _PAGE_TABLE_KEYS
+			df = entry.get("df")
+			if isinstance(df, pd.DataFrame) and not df.empty:
+				b64 = _dataframe_to_base64(df, title=title)
+				if b64:
+					images.append(b64)
+					seen_titles.add(title)
+
 	return images
 
 def call_gemini_with_context(user_message):
@@ -290,81 +411,42 @@ def call_gemini_with_context(user_message):
 	history = st.session_state.get("chat_history", [])
 	
 	img_b64_list = get_all_figures_base64()
+	tbl_b64_list = get_all_tables_base64()
+	all_media_b64 = img_b64_list + tbl_b64_list
 
 	for i, (role, content) in enumerate(history):
 		# For the current last user message, append the context information
 		if i == len(history) - 1 and role == "user":
 			text_with_context = "Context from the app:\n%s\n\nUser question: %s" % (context, content)
-			parts = [{"text": text_with_context}]
-			for img_b64 in img_b64_list:
-				parts.append({
-					"inline_data": {
-						"mime_type": "image/png",
-						"data": img_b64
-					}
-				})
-			contents.append({
-				"role": "user",
-				"parts": parts
-			})
+			parts = [types.Part(text=text_with_context)]
+			for media_b64 in all_media_b64:
+				parts.append(types.Part(
+					inline_data=types.Blob(mime_type="image/png", data=base64.b64decode(media_b64))
+				))
+			contents.append(types.Content(role="user", parts=parts))
 		else:
-			contents.append({
-				"role": "user" if role == "user" else "model",
-				"parts": [{"text": content}]
-			})
+			api_role = "user" if role == "user" else "model"
+			contents.append(types.Content(role=api_role, parts=[types.Part(text=content)]))
 	
 	# Fallback if history is empty
 	if not contents:
-		parts = [{"text": "Context:\n%s\n\nQuestion: %s" % (context, user_message)}]
-		for img_b64 in img_b64_list:
-			parts.append({
-				"inline_data": {
-					"mime_type": "image/png",
-					"data": img_b64
-				}
-			})
-		contents.append({
-			"role": "user",
-			"parts": parts
-		})
+		parts = [types.Part(text="Context:\n%s\n\nQuestion: %s" % (context, user_message))]
+		for media_b64 in all_media_b64:
+			parts.append(types.Part(
+				inline_data=types.Blob(mime_type="image/png", data=base64.b64decode(media_b64))
+			))
+		contents.append(types.Content(role="user", parts=parts))
 
 	try:
-		# Use the latest flash alias to ensure compatibility in 2026
-		url = (
-			"https://generativelanguage.googleapis.com/v1beta/models/"
-			"gemini-flash-latest:generateContent"
+		client = genai.Client(api_key=GEMINI_API_KEY)
+		response = client.models.generate_content(
+			model="gemini-2.0-flash",
+			contents=contents,
+			config=types.GenerateContentConfig(
+				system_instruction=system_instructions,
+			),
 		)
-		headers = {"Content-Type": "application/json"}
-		payload = {
-			"contents": contents,
-			"system_instruction": {
-				"parts": [{"text": system_instructions}]
-			}
-		}
-
-		resp = requests.post(
-			url,
-			headers=headers,
-			params={"key": GEMINI_API_KEY},
-			json=payload,
-			timeout=30,
-		)
-		if resp.status_code != 200:
-			return "Gemini API error %d: %s" % (resp.status_code, resp.text[:500])
-
-		data = resp.json()
-		candidates = data.get("candidates", [])
-		if not candidates:
-			return "Gemini API returned no candidates."
-
-		first = candidates[0].get("content", {})
-		parts = first.get("parts", [])
-		texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
-
-		if not texts:
-			return "Gemini API returned an empty response."
-
-		return "\n".join(texts)
+		return response.text
 	except Exception as e:
 		return "There was an error while contacting Gemini: %s" % e
 
