@@ -219,6 +219,8 @@ try:
                             show_table(permanova, "PERMANOVA-statistics", hide_index=True)
                         with t2:
                             shape_map = st.session_state.get("pcoa_committed_shapes", {})
+                            if not shape_map:
+                                shape_map = {str(cat): "circle" for cat in committed_categories}
                             fig = get_pcoa_scatter_plot(
                                 pcoa_result,
                                 st.session_state.md.loc[filtered_md.index],

@@ -242,6 +242,22 @@ def show_table(df, title="", col="", download=True, hide_index=False):
         col = st
     col.dataframe(df, use_container_width=True, hide_index=hide_index)
 
+    # Persist shown tables keyed by page so the LLM chat can access them
+    current_page = st.session_state.get("current_page", "")
+    if "_shown_tables" not in st.session_state:
+        st.session_state["_shown_tables"] = []
+    # Replace any existing entry for the same page+title (fresh on each rerun)
+    st.session_state["_shown_tables"] = [
+        t for t in st.session_state["_shown_tables"]
+        if not (t["page"] == current_page and t["title"] == title)
+    ]
+    st.session_state["_shown_tables"].append({"page": current_page, "title": title, "df": df})
+    # Cap total stored entries to avoid memory bloat
+    if len(st.session_state["_shown_tables"]) > 20:
+        st.session_state["_shown_tables"] = st.session_state["_shown_tables"][-20:]
+
+    return df
+
 def show_fig(fig, download_name, container_width=True):
     # Store last figure in session for chat context
     st.session_state["last_figure"] = fig

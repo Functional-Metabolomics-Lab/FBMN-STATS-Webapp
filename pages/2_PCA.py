@@ -194,6 +194,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             t1, t2, t3 = st.tabs(["📈 PCA Scores Plot", "📊 Explained variance", "📁 Data"])
             with t1:
                 shape_map = st.session_state.get("pca_committed_shapes", {})
+                if not shape_map:
+                    shape_map = {str(cat): "circle" for cat in committed_categories}
                 shape_map_tuple = tuple(sorted(shape_map.items())) if shape_map else None
                 fig = get_pca_scatter_plot(
                     pca_df,
