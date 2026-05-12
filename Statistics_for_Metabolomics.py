@@ -119,7 +119,7 @@ st.markdown("""
 
 st.subheader('Citation and Resources')
 st.markdown("""
-For citations and further resources, please refer to our [article](https://doi.org/10.26434/chemrxiv-2023-wwbt0). You can download the Windows executables of the app from our [homepage](https://www.functional-metabolomics.com/resources).
+For citations and further resources, please refer to our [article](https://www.nature.com/articles/s41596-024-01046-3). You can download the Windows executables of the app from our [homepage](https://www.functional-metabolomics.com/resources).
 """)
 
 

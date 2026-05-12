@@ -134,6 +134,13 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 st.selectbox("Color significant points by", options=color_by_options, key="kruskal_color_by")
                 _kw_color = st.session_state.get("kruskal_color_by", "Significance (default)")
                 kw_plot_df = filter_top_significant_points_ui(st.session_state.df_kruskal, "kruskal_plot")
+                _df_kw_full = st.session_state.df_kruskal
+                if _df_kw_full is not None and not _df_kw_full.empty and "significant" in _df_kw_full.columns:
+                    _n_sig = int(_df_kw_full["significant"].sum())
+                    _total = len(_df_kw_full)
+                    st.write(f"Significant: {_n_sig}")
+                    st.write(f"Insignificant: {_total - _n_sig}")
+                    st.write(f"Total data points: {_total}")
                 fig = get_kruskal_plot(kw_plot_df, color_by=None if _kw_color == "Significance (default)" else _kw_color)
                 show_fig(fig, "kruskal")
                 st.session_state["page_figs_kw_plot"] = fig

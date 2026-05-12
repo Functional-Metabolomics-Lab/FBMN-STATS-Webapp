@@ -140,7 +140,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 except Exception:
                     return x
             style_dict = {}
-            for col in ["p-val", "p-corrected"]:
+            for col in ["p_val", "p-corrected"]:
                 if col in df_display.columns:
                     style_dict[col] = sci_notation_or_plain
             if style_dict:

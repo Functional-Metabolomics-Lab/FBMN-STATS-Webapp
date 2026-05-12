@@ -129,10 +129,6 @@ def get_friedman_plot(friedman_df, color_by=None):
     n_significant = int(friedman_clean[friedman_clean["significant"]]["metabolite"].nunique())
     n_insignificant = total_points - n_significant
 
-    st.write(f"Significant: {n_significant}")
-    st.write(f"Insignificant: {n_insignificant}")
-    st.write(f"Total data points: {total_points}")
-
     insig = friedman_clean[~friedman_clean["significant"]]
     sig = friedman_clean[friedman_clean["significant"]]
 

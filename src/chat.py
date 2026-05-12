@@ -3,17 +3,17 @@ import json
 import base64
 import io
 
-from google import genai
-from google.genai import types
+import litellm
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
 
-# Load Gemini API key from .env
+# Load API key from .env
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLEGEMINIAPI")
+LLM_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLEGEMINIAPI")
+LLM_MODEL = "gemini/gemini-2.0-flash"
 
 
 def get_current_page_name():
@@ -26,7 +26,7 @@ def get_current_page_name():
 
 
 def build_analysis_context_summary():
-	"""Create a short text summary about the app state for Gemini."""
+	"""Create a short text summary about the app state for the LLM."""
 
 	parts = []
 	page_name = get_current_page_name()
@@ -159,9 +159,12 @@ def get_current_page_prompt():
 		"ANOVA & Tukey's": "7_ANOVA_Tukeys.txt",
 		"Kruskal-Wallis & Dunn's": "8_KW_Dunns.txt",
 		"T-test": "9_T-test.txt",
-		"Mann-Whitney U": "10_MW.txt"
+		"Mann-Whitney U": "10_MW.txt",
+		"Wilcoxon Signed-Rank": "11_Wilcoxon.txt",
+		"Friedman": "12_Friedman.txt",
+		"Repeated Measures ANOVA": "8_RM_ANOVA.txt",
 	}
-	
+
 	current_page = get_current_page_name()
 	filename = page_map.get(current_page)
 	if filename:
@@ -180,6 +183,7 @@ _PAGE_FIGURE_KEYS = {
 	"Mann-Whitney U": ["page_figs_mwu_sig", "page_figs_mwu_boxplot"],
 	"Wilcoxon Signed-Rank": ["page_figs_wilcoxon_sig", "page_figs_wilcoxon_boxplot"],
 	"Friedman": ["page_figs_friedman_plot", "page_figs_friedman_boxplot"],
+	"Repeated Measures ANOVA": ["page_figs_rm_anova_plot"],
 }
 
 _PAGE_TABLE_KEYS = {
@@ -326,11 +330,11 @@ def get_all_tables_base64():
 
 	return images
 
-def call_gemini_with_context(user_message):
-	"""Call Gemini with a prompt that includes app context and the user question."""
+def call_llm_with_context(user_message):
+	"""Call the LLM with a prompt that includes app context and the user question."""
 
-	if not GEMINI_API_KEY:
-		return "Gemini API key is not configured. Please set GOOGLE_API_KEY in your .env file."
+	if not LLM_API_KEY:
+		return "API key is not configured. Please set GOOGLE_API_KEY in your .env file."
 
 	context = build_analysis_context_summary()
 	app_summary = get_app_summary()
@@ -396,7 +400,7 @@ def call_gemini_with_context(user_message):
 
 	if app_summary:
 		system_instructions += "\n\n---\n### General App Context:\n" + app_summary
-	
+
 	if page_prompt:
 		system_instructions += "\n\n---\n### Current Page Context — %s:\n" % get_current_page_name() + page_prompt
 
@@ -406,52 +410,50 @@ def call_gemini_with_context(user_message):
 		"If specific data is not available in the context, say so clearly rather than guessing."
 	)
 
-	# Build multi-turn conversation contents
-	contents = []
+	# Build multi-turn conversation in OpenAI-compatible message format
+	messages = [{"role": "system", "content": system_instructions}]
 	history = st.session_state.get("chat_history", [])
-	
+
 	img_b64_list = get_all_figures_base64()
 	tbl_b64_list = get_all_tables_base64()
 	all_media_b64 = img_b64_list + tbl_b64_list
 
 	for i, (role, content) in enumerate(history):
-		# For the current last user message, append the context information
 		if i == len(history) - 1 and role == "user":
 			text_with_context = "Context from the app:\n%s\n\nUser question: %s" % (context, content)
-			parts = [types.Part(text=text_with_context)]
+			msg_content = [{"type": "text", "text": text_with_context}]
 			for media_b64 in all_media_b64:
-				parts.append(types.Part(
-					inline_data=types.Blob(mime_type="image/png", data=base64.b64decode(media_b64))
-				))
-			contents.append(types.Content(role="user", parts=parts))
+				msg_content.append({
+					"type": "image_url",
+					"image_url": {"url": "data:image/png;base64,%s" % media_b64},
+				})
+			messages.append({"role": "user", "content": msg_content})
 		else:
-			api_role = "user" if role == "user" else "model"
-			contents.append(types.Content(role=api_role, parts=[types.Part(text=content)]))
-	
+			api_role = "user" if role == "user" else "assistant"
+			messages.append({"role": api_role, "content": content})
+
 	# Fallback if history is empty
-	if not contents:
-		parts = [types.Part(text="Context:\n%s\n\nQuestion: %s" % (context, user_message))]
+	if len(messages) == 1:
+		msg_content = [{"type": "text", "text": "Context:\n%s\n\nQuestion: %s" % (context, user_message)}]
 		for media_b64 in all_media_b64:
-			parts.append(types.Part(
-				inline_data=types.Blob(mime_type="image/png", data=base64.b64decode(media_b64))
-			))
-		contents.append(types.Content(role="user", parts=parts))
+			msg_content.append({
+				"type": "image_url",
+				"image_url": {"url": "data:image/png;base64,%s" % media_b64},
+			})
+		messages.append({"role": "user", "content": msg_content})
 
 	try:
-		client = genai.Client(api_key=GEMINI_API_KEY)
-		response = client.models.generate_content(
-			model="gemini-2.0-flash",
-			contents=contents,
-			config=types.GenerateContentConfig(
-				system_instruction=system_instructions,
-			),
+		response = litellm.completion(
+			model=LLM_MODEL,
+			messages=messages,
+			api_key=LLM_API_KEY,
 		)
-		return response.text
+		return response.choices[0].message.content
 	except Exception as e:
-		return "There was an error while contacting Gemini: %s" % e
+		return "There was an error while contacting the LLM: %s" % e
 
 def render_sidebar_chat():
-	"""Show a simple chat box in the sidebar that talks to Gemini."""
+	"""Show a simple chat box in the sidebar that talks to the LLM."""
 
 	#saves chat history while navigating between pages
 	if "chat_history" not in st.session_state:
@@ -459,28 +461,28 @@ def render_sidebar_chat():
 
 	st.markdown("### 💬 Chat Assistant")
 
-	if not GEMINI_API_KEY:
-		st.warning("Gemini API key is not configured. Set GOOGLE_API_KEY in your .env file.")
+	if not LLM_API_KEY:
+		st.warning("API key is not configured. Set GOOGLE_API_KEY in your .env file.")
 
 	if not st.session_state["chat_history"]:
 		uploaded_file = st.file_uploader("Upload Chat History", type=["txt"], key="chat_history_uploader")
-		
+
 		if uploaded_file is not None:
 			try:
 				# Read and decode the text file
 				stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
 				chat_text = stringio.read()
-				
+
 				parsed_history = []
 				# Split by the specific markers we use in the download function
 				# Warning: This is a fragile parsing method if the user types "**You:** " in their message
 				parts = chat_text.split("**You:** ")
-				
+
 				for part in parts:
 					p = part.strip()
 					if not p:
 						continue
-					
+
 					if "**Assistant:** " in p:
 						# Split into user and assistant part
 						user_part, assistant_part = p.split("**Assistant:** ", 1)
@@ -489,7 +491,7 @@ def render_sidebar_chat():
 					else:
 						# Just user message? or malformed
 						pass
-				
+
 				if parsed_history and parsed_history != st.session_state["chat_history"]:
 					st.session_state["chat_history"] = parsed_history
 					st.success("Chat history restored from text file!")
@@ -499,7 +501,7 @@ def render_sidebar_chat():
 
 			except Exception as e:
 				st.error(f"Error loading history: {e}")
-		
+
 
 	# Show previous messages in a collapsible, 300 size scrollable box
 	if st.session_state["chat_history"]:
@@ -523,8 +525,8 @@ def render_sidebar_chat():
 		if text:
 			# Save user question
 			st.session_state["chat_history"].append(("user", text))
-			# Get answer from Gemini
-			answer = call_gemini_with_context(text)
+			# Get answer from the LLM
+			answer = call_llm_with_context(text)
 			st.session_state["chat_history"].append(("assistant", answer))
 			# Clear the input box
 			st.session_state["gemini_chat_input"] = ""
@@ -541,7 +543,7 @@ def render_sidebar_chat():
 			st.session_state["chat_history"] = []
 			st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 
-		with col2: 
+		with col2:
 			# Export as Text to be compatible with the upload functionality
 			history_text = ""
 			for role, content in st.session_state["chat_history"]:
@@ -550,5 +552,3 @@ def render_sidebar_chat():
 				else:
 					history_text += "**Assistant:** %s\n\n" % content
 			st.download_button("Download Chat History", history_text, "chat_history.txt")
-
-

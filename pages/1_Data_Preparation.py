@@ -233,7 +233,10 @@ else:
 
         # --- Load into session_state only when a new file arrives ---
         if ft_file:
-            st.session_state["ft_uploaded"] = load_ft(ft_file).set_index('metabolite')
+            _ft_loaded = load_ft(ft_file)
+            if 'metabolite' in _ft_loaded.columns:
+                _ft_loaded = _ft_loaded.set_index('metabolite')
+            st.session_state["ft_uploaded"] = _ft_loaded
         else:
             st.session_state["ft_uploaded"] = None
         if md_file:

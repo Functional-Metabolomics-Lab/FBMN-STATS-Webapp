@@ -129,6 +129,13 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 st.selectbox("Color significant points by", options=color_by_options, key="anova_color_by")
                 _anova_color = st.session_state.get("anova_color_by", "Significance (default)")
                 anova_plot_df = filter_top_significant_points_ui(st.session_state.df_anova, "anova_plot")
+                _df_anova_full = st.session_state.df_anova
+                if _df_anova_full is not None and not _df_anova_full.empty and "significant" in _df_anova_full.columns:
+                    _n_sig = int(_df_anova_full["significant"].sum())
+                    _total = len(_df_anova_full)
+                    st.write(f"Significant: {_n_sig}")
+                    st.write(f"Insignificant: {_total - _n_sig}")
+                    st.write(f"Total data points: {_total}")
                 fig = get_anova_plot(anova_plot_df, color_by=None if _anova_color == "Significance (default)" else _anova_color)
                 show_fig(fig, "anova")
                 st.session_state["page_figs_anova_plot"] = fig
