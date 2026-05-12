@@ -1,0 +1,25 @@
+version: '3'
+services:
+  statsapp-streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: statsapp-streamlit
+    volumes:
+      - ./logs:/app/logs:rw
+    networks:
+      - default
+      - nginx-net
+    restart: unless-stopped
+    command: /app/run_server.sh
+    environment:
+      VIRTUAL_HOST: fbmn-statsguide.gnps2.org
+      VIRTUAL_PORT: 5000
+      LETSENCRYPT_HOST: fbmn-statsguide.gnps2.org
+      LETSENCRYPT_EMAIL: mwang87@gmail.com
+      ENVIRONMENT_MODE: gnps
+
+networks:
+  nginx-net:
+    external:
+      name: nginx-net
