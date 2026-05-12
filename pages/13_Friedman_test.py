@@ -152,6 +152,13 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.selectbox("Color significant points by", options=color_by_options, key="friedman_color_by")
             _friedman_color = st.session_state.get("friedman_color_by", "Significance (default)")
             friedman_plot_df = filter_top_significant_points_ui(st.session_state.df_friedman, "friedman_plot")
+            _df_fried_full = st.session_state.df_friedman
+            if _df_fried_full is not None and not _df_fried_full.empty and "significant" in _df_fried_full.columns:
+                _n_sig = int(_df_fried_full["significant"].sum())
+                _total = len(_df_fried_full)
+                st.write(f"Significant: {_n_sig}")
+                st.write(f"Insignificant: {_total - _n_sig}")
+                st.write(f"Total data points: {_total}")
             fig = get_friedman_plot(friedman_plot_df, color_by=None if _friedman_color == "Significance (default)" else _friedman_color)
             show_fig(fig, "friedman")
             st.session_state["page_figs_friedman_plot"] = fig

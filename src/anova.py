@@ -156,9 +156,6 @@ def get_anova_plot(anova, color_by=None):
     total_points = len(anova)
     n_significant = int(anova["significant"].sum())
     n_insignificant = total_points - n_significant
-    st.write(f"Significant: {n_significant}")
-    st.write(f"Insignificant: {n_insignificant}")
-    st.write(f"Total data points: {total_points}")
 
     ins = anova[anova["significant"] == False]
     if not ins.empty:
@@ -316,12 +313,12 @@ def gen_pairwise_tukey(df, _metabolites, attribute, _progress_callback=None):
             (
             metabolite,
             tukey.loc[0, "diff"],
-            tukey.loc[0, "p-tukey"],
+            tukey.loc[0, "p_tukey"],
             attribute,
             tukey.loc[0, "A"],
             tukey.loc[0, "B"],
-            tukey.loc[0, "mean(A)"],
-            tukey.loc[0, "mean(B)"],
+            tukey.loc[0, "mean_A"],
+            tukey.loc[0, "mean_B"],
             )
         )
     return results
@@ -371,7 +368,7 @@ def tukey(df, attribute, elements, correction, _progress_callback=None):
             gen_pairwise_tukey(
                 data, valid_metabolites, attribute, _progress_callback=_progress_callback
                 ),
-                dtype=[("stats_metabolite", "U100"), (f"diff", "f"), (f"stats_p", "f"), ("attribute", "U100"), ("A", "U100"), ("B", "U100"), ("mean(A)", "f"), ("mean(B)", "f"),],
+                dtype=[("stats_metabolite", "U100"), (f"diff", "f"), (f"stats_p", "f"), ("attribute", "U100"), ("A", "U100"), ("B", "U100"), ("mean_A", "f"), ("mean_B", "f"),],
         )
     )
 
@@ -508,8 +505,8 @@ def get_tukey_volcano_plot(df):
 
     # compute log2 fold change (B relative to A). avoiding zeros by using a small epsilon
     eps = 1e-9
-    meanA = df["mean(A)"].astype(float) + eps
-    meanB = df["mean(B)"].astype(float) + eps
+    meanA = df["mean_A"].astype(float) + eps
+    meanB = df["mean_B"].astype(float) + eps
     df = df.copy()
     df["log2FC"] = np.log2(meanB/meanA)
     df["neglog10p"] = -np.log10(df["p"].astype(float) + eps)

@@ -142,10 +142,6 @@ def get_rm_anova_plot(rm_anova_df, color_by=None):
     total_points = len(rm_anova_df)
     n_significant = int(rm_anova_df["significant"].sum())
     n_insignificant = total_points - n_significant
-    st.write(f"Significant: {n_significant}")
-    st.write(f"Insignificant: {n_insignificant}")
-    st.write(f"Total data points: {total_points}")
-
     ins = rm_anova_df[rm_anova_df["significant"] == False]
     if not ins.empty:
         fig.add_trace(go.Scatter(

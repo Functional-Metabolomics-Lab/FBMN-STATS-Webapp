@@ -87,10 +87,6 @@ def get_kruskal_plot(kruskal, color_by=None):
     n_significant = int(kruskal_clean[kruskal_clean["significant"]]["metabolite"].nunique())
     n_insignificant = total_points - n_significant
 
-    st.write(f"Significant: {n_significant}")
-    st.write(f"Insignificant: {n_insignificant}")
-    st.write(f"Total data points: {total_points}")
-
     insig = kruskal_clean[~kruskal_clean["significant"]]
     sig = kruskal_clean[kruskal_clean["significant"]]
 

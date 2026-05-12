@@ -88,7 +88,7 @@ def page_setup():
         st.session_state["data_preparation_done"] = False
 
     with st.sidebar:
-        # Gemini-powered chat assistant (shown above settings)
+        # AI chat assistant (shown above settings)
         render_sidebar_chat()
 
         with st.expander("⚙️ Settings", expanded=True):
@@ -307,7 +307,7 @@ def filter_top_significant_points_ui(df, key_prefix, *, min_n=5, max_n=100, defa
     if not st.session_state.get(checkbox_key, False):
         return df
 
-    p_col = next((c for c in ["p-corrected", "p-val", "p", "stats_p"] if c in df.columns), None)
+    p_col = next((c for c in ["p-corrected", "p_val", "p-val", "p", "stats_p"] if c in df.columns), None)
     if p_col is None:
         st.info("No p-value column was found to rank significance. Showing all points.")
         return df
