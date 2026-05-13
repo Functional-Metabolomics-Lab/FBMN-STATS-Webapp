@@ -298,7 +298,7 @@ def ttest_boxplot(df_ttest, metabolite):
     attribute = st.session_state.ttest_attribute
     p_value = df_ttest.loc[metabolite, "p-corrected"]
 
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)[[attribute, metabolite]].copy()
+    df = pd.concat([st.session_state.data[[metabolite]], st.session_state.md[[attribute]]], axis=1).copy()
 
     # Filter for the two selected groups and ensure only those two are present, in order
     options = st.session_state.ttest_options

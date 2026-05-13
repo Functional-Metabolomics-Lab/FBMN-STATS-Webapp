@@ -208,7 +208,7 @@ def get_friedman_metabolite_boxplot(friedman_df, metabolite):
     attribute = st.session_state.friedman_attribute
     p_value = friedman_df.set_index("metabolite")._get_value(metabolite, "p-corrected")
 
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)[[attribute, metabolite]].copy()
+    df = pd.concat([st.session_state.data[[metabolite]], st.session_state.md[[attribute]]], axis=1).copy()
     if "friedman_groups" in st.session_state:
         df = df[df[attribute].isin(st.session_state.friedman_groups)]
 

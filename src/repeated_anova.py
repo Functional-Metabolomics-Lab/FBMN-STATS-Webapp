@@ -212,7 +212,7 @@ def get_rm_anova_metabolite_boxplot(rm_anova_df, metabolite):
     attribute = st.session_state.rm_anova_attribute
     p_value = rm_anova_df.set_index("metabolite")._get_value(metabolite, "p-corrected")
 
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)[[attribute, metabolite]].copy()
+    df = pd.concat([st.session_state.data[[metabolite]], st.session_state.md[[attribute]]], axis=1).copy()
     if "rm_anova_groups" in st.session_state and st.session_state.rm_anova_groups:
         df = df[df[attribute].isin(st.session_state.rm_anova_groups)]
 
