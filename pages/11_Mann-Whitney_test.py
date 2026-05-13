@@ -171,7 +171,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 _mwu_top_n = 1
 
             if st.button("Generate PDF", key="mwu_generate_pdf_btn", type="primary"):
-                _mwu_p_col = next((c for c in ["p-corrected", "p_val"] if c in df.columns), None)
+                _mwu_p_col = next((c for c in ["p-corrected", "p-val"] if c in df.columns), None)
                 _mwu_sig_col = next((c for c in ["significance", "significant"] if c in df.columns), None)
                 if _mwu_pdf_mode == "Single metabolite":
                     _mwu_mets = [st.session_state.mwu_metabolite]
@@ -217,7 +217,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 except Exception:
                     return x
             style_dict = {}
-            for col in ["p_val", "p-corrected"]:
+            for col in ["p-val", "p-corrected"]:
                 if col in df_display.columns:
                     style_dict[col] = sci_notation_or_plain
             if style_dict:

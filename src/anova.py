@@ -313,12 +313,12 @@ def gen_pairwise_tukey(df, _metabolites, attribute, _progress_callback=None):
             (
             metabolite,
             tukey.loc[0, "diff"],
-            tukey.loc[0, "p_tukey"],
+            tukey.loc[0, "p-tukey"],
             attribute,
             tukey.loc[0, "A"],
             tukey.loc[0, "B"],
-            tukey.loc[0, "mean_A"],
-            tukey.loc[0, "mean_B"],
+            tukey.loc[0, "mean(A)"],
+            tukey.loc[0, "mean(B)"],
             )
         )
     return results

@@ -44,9 +44,9 @@ def gen_mwu_data(mwu_attribute, target_groups, alternative, p_correction, _progr
         return pd.DataFrame()
 
     mwu = pd.concat(mwu_results).set_index("metabolite")
-    mwu = mwu.dropna(subset=["p_val"])
+    mwu = mwu.dropna(subset=["p-val"])
     st.session_state.mwu_returned_metabolites = len(mwu)
-    mwu.insert(4, "p-corrected", pg.multicomp(mwu["p_val"].astype(float), method=p_correction)[1])
+    mwu.insert(4, "p-corrected", pg.multicomp(mwu["p-val"].astype(float), method=p_correction)[1])
     mwu.insert(5, "significance", mwu["p-corrected"] < 0.05)
     mwu.insert(6, "attribute", mwu_attribute)
     mwu.insert(7, "A", target_groups[0])
@@ -56,7 +56,7 @@ def gen_mwu_data(mwu_attribute, target_groups, alternative, p_correction, _progr
 
 def _clean_mwu_dataframe(df):
     df = df.copy()
-    numeric_cols = ["U_val", "p_val", "p-corrected", "mean(A)", "mean(B)"]
+    numeric_cols = ["U-val", "p-val", "p-corrected", "mean(A)", "mean(B)"]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -102,7 +102,7 @@ def plot_mwu(df, color_by=None):
         return go.Figure()
     fig = px.scatter(
         df,
-        x="U_val",
+        x="U-val",
         y="-log_p_corrected",
         color="sig_label",
         color_discrete_map=_color_map,
@@ -112,7 +112,7 @@ def plot_mwu(df, color_by=None):
         height=600,
     )
     fig.update_traces(hovertemplate="metabolite&name: %{customdata[0]}<extra></extra>")
-    xlim = [df["U_val"].min(), df["U_val"].max()]
+    xlim = [df["U-val"].min(), df["U-val"].max()]
     x_padding = abs(xlim[1] - xlim[0]) / 5 if (xlim[1] != xlim[0] and pd.notnull(xlim[0]) and pd.notnull(xlim[1])) else 1
     fig.update_layout(xaxis=dict(range=[xlim[0] - x_padding, xlim[1] + x_padding]))
     if len(df) > 0:

@@ -213,7 +213,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 _wil_top_n = 1
 
             if st.button("Generate PDF", key="wil_generate_pdf_btn", type="primary"):
-                _wil_p_col = next((c for c in ["p-corrected", "p_val"] if c in df.columns), None)
+                _wil_p_col = next((c for c in ["p-corrected", "p-val"] if c in df.columns), None)
                 _wil_sig_col = next((c for c in ["significance", "significant"] if c in df.columns), None)
                 if _wil_pdf_mode == "Single metabolite":
                     _wil_mets = [st.session_state.wilcoxon_metabolite]
@@ -261,7 +261,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     return x
 
             style_dict = {}
-            for col in ["p_val", "p-corrected"]:
+            for col in ["p-val", "p-corrected"]:
                 if col in df_display.columns:
                     style_dict[col] = sci_notation_or_plain
             if style_dict:

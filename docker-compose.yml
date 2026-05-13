@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: statsapp-streamlit
+    env_file:
+      - .env
     volumes:
       - ./logs:/app/logs:rw
     networks:

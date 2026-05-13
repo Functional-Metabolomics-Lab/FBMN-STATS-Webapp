@@ -70,10 +70,10 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
         return pd.DataFrame()
 
     ttest = pd.concat(ttest).set_index("metabolite")
-    ttest = ttest.dropna(subset=['p_val']) # Only drop if p_val is NaN
+    ttest = ttest.dropna(subset=['p-val']) # Only drop if p-val is NaN
     st.session_state.ttest_returned_metabolites = len(ttest)
 
-    ttest.insert(8, "p-corrected", pg.multicomp(ttest["p_val"].astype(float), method=p_correction)[1])
+    ttest.insert(8, "p-corrected", pg.multicomp(ttest["p-val"].astype(float), method=p_correction)[1])
     # add significance
     ttest.insert(9, "significance", ttest["p-corrected"] < 0.05)
     ttest.insert(10, "attribute", ttest_attribute)
@@ -90,7 +90,7 @@ def _clean_ttest_dataframe(df):
     df = df.copy()
     
     # Ensure all numeric columns are proper numeric types
-    numeric_cols = ["p_val", "p-corrected", "mean(A)", "mean(B)", "dof"]
+    numeric_cols = ["p-val", "p-corrected", "mean(A)", "mean(B)", "dof"]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')

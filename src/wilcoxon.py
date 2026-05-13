@@ -58,10 +58,10 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
         return pd.DataFrame()
 
     wilcoxon_df = pd.concat(wilcoxon_results).set_index("metabolite")
-    wilcoxon_df = wilcoxon_df.dropna(subset=["p_val"])
+    wilcoxon_df = wilcoxon_df.dropna(subset=["p-val"])
     st.session_state.wilcoxon_returned_metabolites = len(wilcoxon_df)
 
-    wilcoxon_df.insert(4, "p-corrected", pg.multicomp(wilcoxon_df["p_val"].astype(float), method=p_correction)[1])
+    wilcoxon_df.insert(4, "p-corrected", pg.multicomp(wilcoxon_df["p-val"].astype(float), method=p_correction)[1])
     wilcoxon_df.insert(5, "significance", wilcoxon_df["p-corrected"] < 0.05)
     wilcoxon_df.insert(6, "attribute", wilcoxon_attribute)
     wilcoxon_df.insert(7, "A", target_groups[0])
@@ -73,7 +73,7 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
 
 def _clean_wilcoxon_dataframe(df):
     df = df.copy()
-    numeric_cols = ["W_val", "p_val", "p-corrected", "RBC", "CLES", "median(A)", "median(B)"]
+    numeric_cols = ["W-val", "p-val", "p-corrected", "RBC", "CLES", "median(A)", "median(B)"]
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -120,7 +120,7 @@ def plot_wilcoxon(df, color_by=None):
 
     fig = px.scatter(
         df,
-        x="W_val",
+        x="W-val",
         y="-log_p_corrected",
         color="sig_label",
         color_discrete_map=_color_map,
@@ -131,7 +131,7 @@ def plot_wilcoxon(df, color_by=None):
     )
     fig.update_traces(hovertemplate="metabolite&name: %{customdata[0]}<extra></extra>")
 
-    xlim = [df["W_val"].min(), df["W_val"].max()]
+    xlim = [df["W-val"].min(), df["W-val"].max()]
     x_padding = (
         abs(xlim[1] - xlim[0]) / 5
         if (xlim[1] != xlim[0] and pd.notnull(xlim[0]) and pd.notnull(xlim[1]))
