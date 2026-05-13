@@ -19,10 +19,11 @@ You can run the Statistics for Metabolomics app in two ways:
      ```
    - The app will open automatically in your browser.
 
-2. **Using the Windows executable (.exe)**
-   - Download the latest `.exe` version from the releases page.
-   - ⚠️ Before installing a new version, **delete all files from any older installation** (for example, from `C:/`).
+2. **Using the Windows executable (.msi)**
+   - Download the latest `.msi` version from the releases page.
+   - ⚠️ Before installing a new version, **delete all files from any older installation** (for example, from `C:/`) or (Control Panel >> Programs >> Programs & Features >> Uninstall a Program >> remove FBMN-STATS-GUIed)
    - This helps avoid compatibility or version conflicts so the app runs smoothly.
+   - Once downloading, if the pop-up terminal seems blank or isn't loading, restart the app. 
 
 ## Available Statistics
 - Principal Component Analysis (PCA)

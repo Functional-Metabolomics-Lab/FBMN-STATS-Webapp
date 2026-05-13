@@ -1,0 +1,5 @@
+version: '3'
+services:
+  statsapp-streamlit:
+    ports:
+    - "5000:5000"
