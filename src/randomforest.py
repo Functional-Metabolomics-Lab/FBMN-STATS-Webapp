@@ -124,10 +124,11 @@ def get_oob_fig(df):
 def get_feature_importance_fig(df_important_features, n_features):
     """Return a horizontal bar chart of the top *n_features* by Gini importance."""
     top = df_important_features.head(n_features).iloc[::-1]  # reverse for horizontal bar
+    truncated_labels = [s[:30] + "…" if len(s) > 30 else s for s in top.index.astype(str)]
     fig = px.bar(
         top,
         x="importance",
-        y=top.index,
+        y=truncated_labels,
         orientation="h",
         template="plotly_white",
         title=f"Top {n_features} Features by Importance",
