@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 
 # Load API key from .env
 load_dotenv()
-LLM_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLEGEMINIAPI")
+LLM_API_KEY = os.getenv("LITELLM_API_KEY")
+LLM_API_BASE = os.getenv("LITELLM_API_BASE", "https://litellm.wanglab.science/v1")
 LLM_MODEL = "gemini/gemini-2.0-flash"
 
 
@@ -334,7 +335,7 @@ def call_llm_with_context(user_message):
 	"""Call the LLM with a prompt that includes app context and the user question."""
 
 	if not LLM_API_KEY:
-		return "API key is not configured. Please set GOOGLE_API_KEY in your .env file."
+		return "API key is not configured. Please set LITELLM_API_KEY in your .env file."
 
 	context = build_analysis_context_summary()
 	app_summary = get_app_summary()
@@ -447,6 +448,7 @@ def call_llm_with_context(user_message):
 			model=LLM_MODEL,
 			messages=messages,
 			api_key=LLM_API_KEY,
+			api_base=LLM_API_BASE,
 		)
 		return response.choices[0].message.content
 	except Exception as e:
