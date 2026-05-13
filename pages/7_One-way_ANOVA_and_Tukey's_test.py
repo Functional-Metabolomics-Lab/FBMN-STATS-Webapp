@@ -219,6 +219,87 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 show_fig(fig, f"anova-{st.session_state.anova_metabolite}")
                 st.session_state["page_figs_anova_boxplot"] = fig
 
+                st.markdown("---")
+                st.markdown("#### Download Boxplots as PDF")
+                st.caption("Exports 4 boxplots per page (2 × 2 grid) sorted by corrected p-value.")
+
+                def _clear_pdf_on_mode_change():
+                    st.session_state.pop("anova_boxplot_pdf_bytes", None)
+                    st.session_state.pop("anova_boxplot_pdf_label", None)
+
+                _pdf_mode = st.radio(
+                    "Selection mode",
+                    options=["Top N significant", "Top N insignificant", "Single metabolite"],
+                    horizontal=True,
+                    key="anova_boxplot_pdf_mode",
+                    on_change=_clear_pdf_on_mode_change,
+                )
+
+                if _pdf_mode in ("Top N significant", "Top N insignificant"):
+                    _df_for_pdf_check = st.session_state.df_anova
+                    _want_sig_check = (_pdf_mode == "Top N significant")
+                    if "significant" in _df_for_pdf_check.columns:
+                        _available_n = int(_df_for_pdf_check["significant"].eq(_want_sig_check).sum())
+                    else:
+                        _available_n = len(_df_for_pdf_check)
+                    _max_n = max(5, min(20, _available_n))
+                    _min_n = min(5, _available_n)
+                    if _available_n == 0:
+                        st.warning(f"No {'significant' if _want_sig_check else 'insignificant'} metabolites available.")
+                        _top_n = 0
+                    else:
+                        _top_n = st.slider(
+                            "Number of metabolites to include",
+                            min_value=_min_n,
+                            max_value=_max_n,
+                            value=min(10, _max_n),
+                            step=1,
+                            key="anova_boxplot_pdf_topn",
+                        )
+                        if _available_n < 20:
+                            st.caption(f"{_available_n} {'significant' if _want_sig_check else 'insignificant'} metabolites available.")
+                else:
+                    _top_n = 1
+
+                if st.button("Generate PDF", key="anova_generate_pdf_btn", type="primary"):
+                    _df_for_pdf = st.session_state.df_anova
+                    _p_sort_col = next((c for c in ["p-corrected", "p"] if c in _df_for_pdf.columns), None)
+
+                    if _pdf_mode == "Single metabolite":
+                        _mets_for_pdf = [st.session_state.anova_metabolite]
+                        _file_label = f"single_{st.session_state.anova_metabolite}"
+                    else:
+                        if "significant" not in _df_for_pdf.columns:
+                            st.warning("Significance column not found in ANOVA results.")
+                            _mets_for_pdf = []
+                            _file_label = ""
+                        else:
+                            _want_sig = (_pdf_mode == "Top N significant")
+                            _pool = _df_for_pdf[_df_for_pdf["significant"] == _want_sig]
+                            if _p_sort_col:
+                                _pool = _pool.sort_values(_p_sort_col)
+                            _mets_for_pdf = list(_pool.index[: _top_n])
+                            _file_label = f"top{_top_n}_{'significant' if _want_sig else 'insignificant'}"
+
+                    if _mets_for_pdf:
+                        with st.spinner(f"Generating PDF — {len(_mets_for_pdf)} boxplot(s)…"):
+                            _pdf_bytes = generate_boxplot_pdf(_df_for_pdf, _mets_for_pdf)
+                        st.session_state["anova_boxplot_pdf_bytes"] = _pdf_bytes
+                        st.session_state["anova_boxplot_pdf_label"] = _file_label
+                    else:
+                        st.warning("No metabolites to include in the PDF.")
+                        st.session_state.pop("anova_boxplot_pdf_bytes", None)
+
+                if st.session_state.get("anova_boxplot_pdf_bytes"):
+                    _dl_label = st.session_state.get("anova_boxplot_pdf_label", "boxplots")
+                    st.download_button(
+                        label="⬇ Download PDF",
+                        data=st.session_state["anova_boxplot_pdf_bytes"],
+                        file_name=f"anova_{_dl_label}.pdf",
+                        mime="application/pdf",
+                        key="anova_download_pdf_btn",
+                    )
+
     # ───────────────────────── TUKEY'S TAB ─────────────────────────
     if st.session_state.df_anova is not None and not st.session_state.df_anova.empty:
         with top_tabs[1]:

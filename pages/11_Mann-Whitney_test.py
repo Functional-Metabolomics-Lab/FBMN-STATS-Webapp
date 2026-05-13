@@ -128,6 +128,83 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             else:
                 st.warning(f"Selected metabolite not found in data columns. Please select a valid metabolite.")
 
+            st.markdown("---")
+            st.markdown("#### Download Boxplots as PDF")
+            st.caption("Exports 4 boxplots per page (2 × 2 grid) sorted by corrected p-value.")
+
+            def _mwu_clear_pdf_on_mode_change():
+                st.session_state.pop("mwu_boxplot_pdf_bytes", None)
+                st.session_state.pop("mwu_boxplot_pdf_label", None)
+
+            _mwu_pdf_mode = st.radio(
+                "Selection mode",
+                options=["Top N significant", "Top N insignificant", "Single metabolite"],
+                horizontal=True,
+                key="mwu_boxplot_pdf_mode",
+                on_change=_mwu_clear_pdf_on_mode_change,
+            )
+
+            if _mwu_pdf_mode in ("Top N significant", "Top N insignificant"):
+                _mwu_want_sig = (_mwu_pdf_mode == "Top N significant")
+                _mwu_sig_col = next((c for c in ["significance", "significant"] if c in df.columns), None)
+                if _mwu_sig_col:
+                    _mwu_avail = int(df[_mwu_sig_col].eq(_mwu_want_sig).sum())
+                else:
+                    _mwu_avail = len(df)
+                _mwu_max_n = max(5, min(20, _mwu_avail))
+                _mwu_min_n = min(5, _mwu_avail)
+                if _mwu_avail == 0:
+                    st.warning(f"No {'significant' if _mwu_want_sig else 'insignificant'} metabolites available.")
+                    _mwu_top_n = 0
+                else:
+                    _mwu_top_n = st.slider(
+                        "Number of metabolites to include",
+                        min_value=_mwu_min_n,
+                        max_value=_mwu_max_n,
+                        value=min(10, _mwu_max_n),
+                        step=1,
+                        key="mwu_boxplot_pdf_topn",
+                    )
+                    if _mwu_avail < 20:
+                        st.caption(f"{_mwu_avail} {'significant' if _mwu_want_sig else 'insignificant'} metabolites available.")
+            else:
+                _mwu_top_n = 1
+
+            if st.button("Generate PDF", key="mwu_generate_pdf_btn", type="primary"):
+                _mwu_p_col = next((c for c in ["p-corrected", "p_val"] if c in df.columns), None)
+                _mwu_sig_col = next((c for c in ["significance", "significant"] if c in df.columns), None)
+                if _mwu_pdf_mode == "Single metabolite":
+                    _mwu_mets = [st.session_state.mwu_metabolite]
+                    _mwu_label = f"single_{st.session_state.mwu_metabolite}"
+                else:
+                    if not _mwu_sig_col:
+                        st.warning("Significance column not found in results.")
+                        _mwu_mets = []
+                        _mwu_label = ""
+                    else:
+                        _mwu_pool = df[df[_mwu_sig_col] == _mwu_want_sig]
+                        if _mwu_p_col:
+                            _mwu_pool = _mwu_pool.sort_values(_mwu_p_col)
+                        _mwu_mets = list(_mwu_pool.index[:_mwu_top_n])
+                        _mwu_label = f"top{_mwu_top_n}_{'significant' if _mwu_want_sig else 'insignificant'}"
+                if _mwu_mets:
+                    with st.spinner(f"Generating PDF — {len(_mwu_mets)} boxplot(s)…"):
+                        _mwu_pdf = generate_boxplot_pdf_generic(df, _mwu_mets, mwu_boxplot)
+                    st.session_state["mwu_boxplot_pdf_bytes"] = _mwu_pdf
+                    st.session_state["mwu_boxplot_pdf_label"] = _mwu_label
+                else:
+                    st.warning("No metabolites to include in the PDF.")
+                    st.session_state.pop("mwu_boxplot_pdf_bytes", None)
+
+            if st.session_state.get("mwu_boxplot_pdf_bytes"):
+                st.download_button(
+                    label="⬇ Download PDF",
+                    data=st.session_state["mwu_boxplot_pdf_bytes"],
+                    file_name=f"mwu_{st.session_state.get('mwu_boxplot_pdf_label', 'boxplots')}.pdf",
+                    mime="application/pdf",
+                    key="mwu_download_pdf_btn",
+                )
+
         with tabs[2]:
             df_display = df.copy()
             def sci_notation_or_plain(x):

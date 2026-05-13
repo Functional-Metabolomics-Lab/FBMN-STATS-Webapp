@@ -230,5 +230,82 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             else:
                 st.warning("Selected metabolite not found in data columns.")
 
+            st.markdown("---")
+            st.markdown("#### Download Boxplots as PDF")
+            st.caption("Exports 4 boxplots per page (2 × 2 grid) sorted by corrected p-value.")
+
+            def _rma_clear_pdf_on_mode_change():
+                st.session_state.pop("rma_boxplot_pdf_bytes", None)
+                st.session_state.pop("rma_boxplot_pdf_label", None)
+
+            _rma_pdf_mode = st.radio(
+                "Selection mode",
+                options=["Top N significant", "Top N insignificant", "Single metabolite"],
+                horizontal=True,
+                key="rma_boxplot_pdf_mode",
+                on_change=_rma_clear_pdf_on_mode_change,
+            )
+
+            if _rma_pdf_mode in ("Top N significant", "Top N insignificant"):
+                _rma_df_check = st.session_state.df_rm_anova
+                _rma_want_sig = (_rma_pdf_mode == "Top N significant")
+                if "significant" in _rma_df_check.columns:
+                    _rma_avail = int(_rma_df_check["significant"].eq(_rma_want_sig).sum())
+                else:
+                    _rma_avail = len(_rma_df_check)
+                _rma_max_n = max(5, min(20, _rma_avail))
+                _rma_min_n = min(5, _rma_avail)
+                if _rma_avail == 0:
+                    st.warning(f"No {'significant' if _rma_want_sig else 'insignificant'} metabolites available.")
+                    _rma_top_n = 0
+                else:
+                    _rma_top_n = st.slider(
+                        "Number of metabolites to include",
+                        min_value=_rma_min_n,
+                        max_value=_rma_max_n,
+                        value=min(10, _rma_max_n),
+                        step=1,
+                        key="rma_boxplot_pdf_topn",
+                    )
+                    if _rma_avail < 20:
+                        st.caption(f"{_rma_avail} {'significant' if _rma_want_sig else 'insignificant'} metabolites available.")
+            else:
+                _rma_top_n = 1
+
+            if st.button("Generate PDF", key="rma_generate_pdf_btn", type="primary"):
+                _rma_df = st.session_state.df_rm_anova
+                _rma_p_col = next((c for c in ["p-corrected", "p"] if c in _rma_df.columns), None)
+                if _rma_pdf_mode == "Single metabolite":
+                    _rma_mets = [st.session_state.rm_anova_metabolite]
+                    _rma_label = f"single_{st.session_state.rm_anova_metabolite}"
+                else:
+                    if "significant" not in _rma_df.columns:
+                        st.warning("Significance column not found in results.")
+                        _rma_mets = []
+                        _rma_label = ""
+                    else:
+                        _rma_pool = _rma_df[_rma_df["significant"] == _rma_want_sig]
+                        if _rma_p_col:
+                            _rma_pool = _rma_pool.sort_values(_rma_p_col)
+                        _rma_mets = list(_rma_pool.index[:_rma_top_n])
+                        _rma_label = f"top{_rma_top_n}_{'significant' if _rma_want_sig else 'insignificant'}"
+                if _rma_mets:
+                    with st.spinner(f"Generating PDF — {len(_rma_mets)} boxplot(s)…"):
+                        _rma_pdf = generate_boxplot_pdf_generic(_rma_df, _rma_mets, get_rm_anova_metabolite_boxplot)
+                    st.session_state["rma_boxplot_pdf_bytes"] = _rma_pdf
+                    st.session_state["rma_boxplot_pdf_label"] = _rma_label
+                else:
+                    st.warning("No metabolites to include in the PDF.")
+                    st.session_state.pop("rma_boxplot_pdf_bytes", None)
+
+            if st.session_state.get("rma_boxplot_pdf_bytes"):
+                st.download_button(
+                    label="⬇ Download PDF",
+                    data=st.session_state["rma_boxplot_pdf_bytes"],
+                    file_name=f"rm_anova_{st.session_state.get('rma_boxplot_pdf_label', 'boxplots')}.pdf",
+                    mime="application/pdf",
+                    key="rma_download_pdf_btn",
+                )
+
 else:
     st.warning("⚠️ Please complete data preparation step first!")

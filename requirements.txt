@@ -11,4 +11,7 @@ scikit-learn==1.4.0
 git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git
 python-dotenv==1.0.1
 requests
-litellm
+litellm==1.35.38
+aiohttp<3.10
+reportlab
+python-docx 
