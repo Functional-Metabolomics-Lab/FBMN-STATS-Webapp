@@ -5,7 +5,6 @@ import uuid
 import base64
 
 from src.chat import render_sidebar_chat
-from src.utils import generate_boxplot_pdf_generic
 
 dataframe_names = ("md",
                    "data",
