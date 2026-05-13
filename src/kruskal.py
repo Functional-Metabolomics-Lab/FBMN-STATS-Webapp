@@ -163,7 +163,7 @@ def get_kruskal_plot(kruskal, color_by=None):
 def get_metabolite_boxplot(kruskal, metabolite):
     attribute = st.session_state.kruskal_attribute
     p_value = kruskal.set_index("metabolite")._get_value(metabolite, "p-corrected")
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)[[attribute, metabolite]].copy()
+    df = pd.concat([st.session_state.data[[metabolite]], st.session_state.md[[attribute]]], axis=1).copy()
 
     if "kruskal_groups" in st.session_state and st.session_state.kruskal_groups:
         df = df[df[attribute].isin(st.session_state.kruskal_groups)]

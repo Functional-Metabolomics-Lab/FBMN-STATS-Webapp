@@ -136,7 +136,7 @@ def plot_mwu(df, color_by=None):
 def mwu_boxplot(df_mwu, metabolite):
     attribute = st.session_state.mwu_attribute
     p_value = df_mwu.loc[metabolite, "p-corrected"]
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)[[attribute, metabolite]].copy()
+    df = pd.concat([st.session_state.data[[metabolite]], st.session_state.md[[attribute]]], axis=1).copy()
     options = st.session_state.mwu_options
     df = df[df[attribute].isin(options)].copy()
     df[attribute] = pd.Categorical(df[attribute], categories=options, ordered=True)
