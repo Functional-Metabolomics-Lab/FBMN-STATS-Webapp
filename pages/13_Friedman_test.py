@@ -216,5 +216,82 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             else:
                 st.warning("Selected metabolite not found in data columns.")
 
+            st.markdown("---")
+            st.markdown("#### Download Boxplots as PDF")
+            st.caption("Exports 4 boxplots per page (2 × 2 grid) sorted by corrected p-value.")
+
+            def _fri_clear_pdf_on_mode_change():
+                st.session_state.pop("fri_boxplot_pdf_bytes", None)
+                st.session_state.pop("fri_boxplot_pdf_label", None)
+
+            _fri_pdf_mode = st.radio(
+                "Selection mode",
+                options=["Top N significant", "Top N insignificant", "Single metabolite"],
+                horizontal=True,
+                key="fri_boxplot_pdf_mode",
+                on_change=_fri_clear_pdf_on_mode_change,
+            )
+
+            if _fri_pdf_mode in ("Top N significant", "Top N insignificant"):
+                _fri_df_check = st.session_state.df_friedman
+                _fri_want_sig = (_fri_pdf_mode == "Top N significant")
+                if "significant" in _fri_df_check.columns:
+                    _fri_avail = int(_fri_df_check["significant"].eq(_fri_want_sig).sum())
+                else:
+                    _fri_avail = len(_fri_df_check)
+                _fri_max_n = max(5, min(20, _fri_avail))
+                _fri_min_n = min(5, _fri_avail)
+                if _fri_avail == 0:
+                    st.warning(f"No {'significant' if _fri_want_sig else 'insignificant'} metabolites available.")
+                    _fri_top_n = 0
+                else:
+                    _fri_top_n = st.slider(
+                        "Number of metabolites to include",
+                        min_value=_fri_min_n,
+                        max_value=_fri_max_n,
+                        value=min(10, _fri_max_n),
+                        step=1,
+                        key="fri_boxplot_pdf_topn",
+                    )
+                    if _fri_avail < 20:
+                        st.caption(f"{_fri_avail} {'significant' if _fri_want_sig else 'insignificant'} metabolites available.")
+            else:
+                _fri_top_n = 1
+
+            if st.button("Generate PDF", key="fri_generate_pdf_btn", type="primary"):
+                _fri_df = st.session_state.df_friedman
+                _fri_p_col = next((c for c in ["p-corrected", "p"] if c in _fri_df.columns), None)
+                if _fri_pdf_mode == "Single metabolite":
+                    _fri_mets = [st.session_state.friedman_metabolite]
+                    _fri_label = f"single_{st.session_state.friedman_metabolite}"
+                else:
+                    if "significant" not in _fri_df.columns:
+                        st.warning("Significance column not found in results.")
+                        _fri_mets = []
+                        _fri_label = ""
+                    else:
+                        _fri_pool = _fri_df[_fri_df["significant"] == _fri_want_sig]
+                        if _fri_p_col:
+                            _fri_pool = _fri_pool.sort_values(_fri_p_col)
+                        _fri_mets = list(_fri_pool.index[:_fri_top_n])
+                        _fri_label = f"top{_fri_top_n}_{'significant' if _fri_want_sig else 'insignificant'}"
+                if _fri_mets:
+                    with st.spinner(f"Generating PDF — {len(_fri_mets)} boxplot(s)…"):
+                        _fri_pdf = generate_boxplot_pdf_generic(_fri_df, _fri_mets, get_friedman_metabolite_boxplot)
+                    st.session_state["fri_boxplot_pdf_bytes"] = _fri_pdf
+                    st.session_state["fri_boxplot_pdf_label"] = _fri_label
+                else:
+                    st.warning("No metabolites to include in the PDF.")
+                    st.session_state.pop("fri_boxplot_pdf_bytes", None)
+
+            if st.session_state.get("fri_boxplot_pdf_bytes"):
+                st.download_button(
+                    label="⬇ Download PDF",
+                    data=st.session_state["fri_boxplot_pdf_bytes"],
+                    file_name=f"friedman_{st.session_state.get('fri_boxplot_pdf_label', 'boxplots')}.pdf",
+                    mime="application/pdf",
+                    key="fri_download_pdf_btn",
+                )
+
 else:
     st.warning("⚠️ Please complete data preparation step first!")

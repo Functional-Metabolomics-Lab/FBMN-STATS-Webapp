@@ -2,6 +2,62 @@ import pandas as pd
 import streamlit as st
 import io
 
+
+def generate_boxplot_pdf_generic(df, metabolites, boxplot_fn):
+    """Generate a PDF with 4 boxplots per page (2×2 grid).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The test-result DataFrame (metabolites as index) passed to boxplot_fn.
+    metabolites : list
+        Ordered list of metabolite identifiers.
+    boxplot_fn : callable
+        Function with signature ``(df, metabolite) -> plotly.Figure``.
+
+    Returns
+    -------
+    bytes
+        Raw PDF bytes ready for ``st.download_button``.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+
+    page_w, page_h = A4
+    margin = 36
+    col_gap = 10
+    row_gap = 10
+    cols, rows_per_page = 2, 2
+    per_page = cols * rows_per_page
+
+    img_w = (page_w - 2 * margin - (cols - 1) * col_gap) / cols
+    img_h = (page_h - 2 * margin - (rows_per_page - 1) * row_gap) / rows_per_page
+    render_w = int(img_w * 2)
+    render_h = int(img_h * 2)
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+
+    for i, metabolite in enumerate(metabolites):
+        pos = i % per_page
+        if pos == 0 and i > 0:
+            c.showPage()
+
+        fig = boxplot_fn(df, metabolite)
+        png_bytes = fig.to_image(format="png", width=render_w, height=render_h)
+        img_reader = ImageReader(io.BytesIO(png_bytes))
+
+        col_idx = pos % cols
+        row_idx = pos // cols
+        x = margin + col_idx * (img_w + col_gap)
+        y = page_h - margin - (row_idx + 1) * img_h - row_idx * row_gap
+        c.drawImage(img_reader, x, y, width=img_w, height=img_h, preserveAspectRatio=False)
+
+    c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
+
 ####################
 ### common text ####
 ####################
