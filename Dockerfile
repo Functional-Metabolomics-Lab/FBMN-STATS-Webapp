@@ -11,9 +11,17 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 # Adding to bashrc
 RUN echo "export PATH=$CONDA_DIR:$PATH" >> ~/.bashrc
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-RUN pip install git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git
+RUN mamba install -y -n base -c conda-forge \
+	python=3.10 \
+	numpy \
+	scikit-bio \
+	&& mamba clean -afy
 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install pip-only packages and the GNPS git package with pip to avoid long solver time
+RUN pip install --no-cache-dir git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git
+	
 COPY . /app
 WORKDIR /app

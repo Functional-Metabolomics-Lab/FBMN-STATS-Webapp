@@ -1,0 +1,5 @@
+version: '3'
+services:
+  statsapp-streamlit:
+    ports:
+      - "8004:5000"

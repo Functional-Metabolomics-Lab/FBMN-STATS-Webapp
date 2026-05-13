@@ -12,9 +12,11 @@ from dotenv import load_dotenv
 
 # Load API key from .env
 load_dotenv()
-LLM_API_KEY = os.getenv("LITELLM_API_KEY")
-LLM_API_BASE = os.getenv("LITELLM_API_BASE", "https://litellm.wanglab.science/v1")
-LLM_MODEL = "gemini/gemini-2.0-flash"
+LITELLM_API_KEY = os.getenv("LITELLM_API_KEY")
+if LITELLM_API_KEY and not LITELLM_API_KEY.startswith("Bearer "):
+	LITELLM_API_KEY = "Bearer " + LITELLM_API_KEY
+LITELLM_API_BASE = os.getenv("LITELLM_API_BASE", "https://litellm.wanglab.science/v1")
+LLM_MODEL = "openai/gemini-3-flash-preview"
 
 
 def get_current_page_name():
@@ -334,7 +336,7 @@ def get_all_tables_base64():
 def call_llm_with_context(user_message):
 	"""Call the LLM with a prompt that includes app context and the user question."""
 
-	if not LLM_API_KEY:
+	if not LITELLM_API_KEY:
 		return "API key is not configured. Please set LITELLM_API_KEY in your .env file."
 
 	context = build_analysis_context_summary()
@@ -447,8 +449,8 @@ def call_llm_with_context(user_message):
 		response = litellm.completion(
 			model=LLM_MODEL,
 			messages=messages,
-			api_key=LLM_API_KEY,
-			api_base=LLM_API_BASE,
+			api_key=LITELLM_API_KEY,
+			api_base=LITELLM_API_BASE,
 		)
 		return response.choices[0].message.content
 	except Exception as e:
@@ -463,8 +465,8 @@ def render_sidebar_chat():
 
 	st.markdown("### 💬 Chat Assistant")
 
-	if not LLM_API_KEY:
-		st.warning("API key is not configured. Set GOOGLE_API_KEY in your .env file.")
+	if not LITELLM_API_KEY:
+		st.warning("API key is not configured. Set LITELLM_API_KEY in your .env file.")
 
 	if not st.session_state["chat_history"]:
 		uploaded_file = st.file_uploader("Upload Chat History", type=["txt"], key="chat_history_uploader")
@@ -537,8 +539,6 @@ def render_sidebar_chat():
 		# logic handled in callback to allow clearing st.session_state["gemini_chat_input"]
 		pass
 
-	st.markdown("---")
-
 	if st.session_state["chat_history"]:
 		col1, col2 = st.columns(2)
 		if col1.button("Clear History", key="gemini_chat_clear", use_container_width=True):
@@ -554,3 +554,5 @@ def render_sidebar_chat():
 				else:
 					history_text += "**Assistant:** %s\n\n" % content
 			st.download_button("Download Chat History", history_text, "chat_history.txt")
+
+	st.markdown("---")
