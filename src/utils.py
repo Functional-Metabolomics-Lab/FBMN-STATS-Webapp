@@ -30,11 +30,14 @@ def generate_boxplot_pdf_generic(df, metabolites, boxplot_fn):
     row_gap = 10
     cols, rows_per_page = 2, 2
     per_page = cols * rows_per_page
+    label_h = 14   # points reserved above each image for the metabolite name
+    font_size = 8
 
     img_w = (page_w - 2 * margin - (cols - 1) * col_gap) / cols
     img_h = (page_h - 2 * margin - (rows_per_page - 1) * row_gap) / rows_per_page
+    plot_h = img_h - label_h   # actual image height after reserving label space
     render_w = int(img_w * 2)
-    render_h = int(img_h * 2)
+    render_h = int(plot_h * 2)
 
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -52,7 +55,14 @@ def generate_boxplot_pdf_generic(df, metabolites, boxplot_fn):
         row_idx = pos // cols
         x = margin + col_idx * (img_w + col_gap)
         y = page_h - margin - (row_idx + 1) * img_h - row_idx * row_gap
-        c.drawImage(img_reader, x, y, width=img_w, height=img_h, preserveAspectRatio=False)
+
+        # Draw metabolite name (part before '&') above the image
+        label = str(metabolite).split("&")[0] if "&" in str(metabolite) else str(metabolite)
+        c.setFont("Helvetica-Bold", font_size)
+        label_y = y + plot_h + (label_h - font_size) / 2
+        c.drawCentredString(x + img_w / 2, label_y, label)
+
+        c.drawImage(img_reader, x, y, width=img_w, height=plot_h, preserveAspectRatio=False)
 
     c.save()
     buffer.seek(0)
