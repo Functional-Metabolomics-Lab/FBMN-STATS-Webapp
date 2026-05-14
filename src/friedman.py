@@ -94,12 +94,12 @@ def friedman_test(attribute, correction, elements, _progress_callback=None):
         return pd.DataFrame()
     group_data = [gdf.iloc[:min_len] for gdf in group_data_raw]
 
-    df = pd.DataFrame(
-        np.fromiter(
-            gen_friedman_data(group_data, _progress_callback=_progress_callback),
-            dtype=[("metabolite", "U100"), ("p", "f"), ("statistic", "f")],
-        )
-    )
+    _fr_rows = list(gen_friedman_data(group_data, _progress_callback=_progress_callback))
+    if _fr_rows:
+        _met, _p, _stat = zip(*_fr_rows)
+        df = pd.DataFrame({"metabolite": list(_met), "p": list(_p), "statistic": list(_stat)})
+    else:
+        df = pd.DataFrame(columns=["metabolite", "p", "statistic"])
     if df.empty:
         st.session_state.friedman_returned_metabolites = 0
         return df

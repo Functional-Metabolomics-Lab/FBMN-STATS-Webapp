@@ -363,14 +363,23 @@ def tukey(df, attribute, elements, correction, _progress_callback=None):
             st.session_state.md.loc[:, attribute]], axis=1)
     data = data[data[attribute].isin(elements)]
     
-    tukey = pd.DataFrame(
-        np.array(
-            gen_pairwise_tukey(
-                data, valid_metabolites, attribute, _progress_callback=_progress_callback
-                ),
-                dtype=[("stats_metabolite", "U100"), (f"diff", "f"), (f"stats_p", "f"), ("attribute", "U100"), ("A", "U100"), ("B", "U100"), ("mean_A", "f"), ("mean_B", "f"),],
-        )
+    _tukey_rows = gen_pairwise_tukey(
+        data, valid_metabolites, attribute, _progress_callback=_progress_callback
     )
+    if _tukey_rows:
+        _met, _diff, _p, _attr, _a, _b, _mean_a, _mean_b = zip(*_tukey_rows)
+        tukey = pd.DataFrame({
+            "stats_metabolite": list(_met),
+            "diff": list(_diff),
+            "stats_p": list(_p),
+            "attribute": list(_attr),
+            "A": list(_a),
+            "B": list(_b),
+            "mean_A": list(_mean_a),
+            "mean_B": list(_mean_b),
+        })
+    else:
+        tukey = pd.DataFrame(columns=["stats_metabolite", "diff", "stats_p", "attribute", "A", "B", "mean_A", "mean_B"])
 
     tukey = tukey.dropna()
     st.session_state.tukey_returned_metabolites = len(tukey)
@@ -624,13 +633,16 @@ def generate_boxplot_pdf(df_anova, metabolites):
     row_gap = 10         # vertical gap between rows
     cols, rows_per_page = 2, 2
     per_page = cols * rows_per_page
+    label_h = 14   # points reserved above each image for the metabolite name
+    font_size = 8
 
     img_w = (page_w - 2 * margin - (cols - 1) * col_gap) / cols
     img_h = (page_h - 2 * margin - (rows_per_page - 1) * row_gap) / rows_per_page
+    plot_h = img_h - label_h   # actual image height after reserving label space
 
-    # Render at 2× for crispness, then scale down to img_w x img_h on the page
+    # Render at 2× for crispness, then scale down to img_w x plot_h on the page
     render_w = int(img_w * 2)
-    render_h = int(img_h * 2)
+    render_h = int(plot_h * 2)
 
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -654,7 +666,13 @@ def generate_boxplot_pdf(df_anova, metabolites):
         # reportlab y=0 is bottom; we place row 0 at the top
         y = page_h - margin - (row_idx + 1) * img_h - row_idx * row_gap
 
-        c.drawImage(img_reader, x, y, width=img_w, height=img_h, preserveAspectRatio=False)
+        # Draw metabolite name (part before '&') above the image
+        label = str(metabolite).split("&")[0] if "&" in str(metabolite) else str(metabolite)
+        c.setFont("Helvetica-Bold", font_size)
+        label_y = y + plot_h + (label_h - font_size) / 2
+        c.drawCentredString(x + img_w / 2, label_y, label)
+
+        c.drawImage(img_reader, x, y, width=img_w, height=plot_h, preserveAspectRatio=False)
 
     c.save()
     buffer.seek(0)

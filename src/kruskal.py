@@ -57,12 +57,12 @@ def kruskal_wallis(df, attribute, correction, elements, _progress_callback=None)
         return pd.DataFrame(columns=["metabolite", "p", "statistic", "p-corrected", "significant"])
     group_data = [combined[combined[attribute] == group].loc[:, metabolite_cols] for group in groups]
 
-    df = pd.DataFrame(
-        np.fromiter(
-            gen_kruskal_data(group_data, _progress_callback=_progress_callback),
-            dtype=[("metabolite", "U100"), ("p", "f"), ("statistic", "f")],
-        )
-    )
+    _kw_rows = list(gen_kruskal_data(group_data, _progress_callback=_progress_callback))
+    if _kw_rows:
+        _met, _p, _stat = zip(*_kw_rows)
+        df = pd.DataFrame({"metabolite": list(_met), "p": list(_p), "statistic": list(_stat)})
+    else:
+        df = pd.DataFrame(columns=["metabolite", "p", "statistic"])
     df = df.dropna()
     df = add_p_correction_to_kruskal(df, correction)
     df = df[df["metabolite"] != attribute]
