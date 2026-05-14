@@ -18,6 +18,11 @@ if LITELLM_API_KEY and not LITELLM_API_KEY.startswith("Bearer "):
 LITELLM_API_BASE = os.getenv("LITELLM_API_BASE", "https://litellm.wanglab.science/v1")
 LLM_MODEL = "openai/gemini-3-flash-preview"
 
+# Google Gemini fallback (used locally when LITELLM_API_KEY is not set)
+GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
+GEMINI_MODEL = "gemini/gemini-2.0-flash"
+USE_GEMINI_FALLBACK = not LITELLM_API_KEY and bool(GOOGLE_GEMINI_API_KEY)
+
 
 def get_current_page_name():
 	"""Try to figure out which page is active right now."""
@@ -336,8 +341,8 @@ def get_all_tables_base64():
 def call_llm_with_context(user_message):
 	"""Call the LLM with a prompt that includes app context and the user question."""
 
-	if not LITELLM_API_KEY:
-		return "API key is not configured. Please set LITELLM_API_KEY in your .env file."
+	if not LITELLM_API_KEY and not GOOGLE_GEMINI_API_KEY:
+		return "API key is not configured. Please set LITELLM_API_KEY (deployment) or GOOGLE_GEMINI_API_KEY (local) in your .env file."
 
 	context = build_analysis_context_summary()
 	app_summary = get_app_summary()
@@ -446,12 +451,19 @@ def call_llm_with_context(user_message):
 		messages.append({"role": "user", "content": msg_content})
 
 	try:
-		response = litellm.completion(
-			model=LLM_MODEL,
-			messages=messages,
-			api_key=LITELLM_API_KEY,
-			api_base=LITELLM_API_BASE,
-		)
+		if USE_GEMINI_FALLBACK:
+			response = litellm.completion(
+				model=GEMINI_MODEL,
+				messages=messages,
+				api_key=GOOGLE_GEMINI_API_KEY,
+			)
+		else:
+			response = litellm.completion(
+				model=LLM_MODEL,
+				messages=messages,
+				api_key=LITELLM_API_KEY,
+				api_base=LITELLM_API_BASE,
+			)
 		return response.choices[0].message.content
 	except Exception as e:
 		return "There was an error while contacting the LLM: %s" % e
@@ -465,8 +477,10 @@ def render_sidebar_chat():
 
 	st.markdown("### 💬 Chat Assistant")
 
-	if not LITELLM_API_KEY:
-		st.warning("API key is not configured. Set LITELLM_API_KEY in your .env file.")
+	if not LITELLM_API_KEY and not GOOGLE_GEMINI_API_KEY:
+		st.warning("API key is not configured. Set LITELLM_API_KEY (deployment) or GOOGLE_GEMINI_API_KEY (local) in your .env file.")
+	elif USE_GEMINI_FALLBACK:
+		st.info("Using Google Gemini API (local fallback mode).")
 
 	if not st.session_state["chat_history"]:
 		uploaded_file = st.file_uploader("Upload Chat History", type=["txt"], key="chat_history_uploader")
