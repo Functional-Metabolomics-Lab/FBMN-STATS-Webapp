@@ -173,19 +173,39 @@ try:
         ]
         filtered_data = st.session_state.data.loc[filtered_md.index]
 
-        st.selectbox(
-            "distance matrix",
-            ["braycurtis", "canberra", "chebyshev", "cityblock", "correlation", "cosine", "euclidean", "hamming", "jaccard", "matching", "minkowski", "seuclidean", "sqeuclidean"],
-            key="pcoa_distance_matrix",
-            index = 6
-        )
+        # Only offer columns that have at least one non-NaN value among the filtered samples
+        valid_color_cols = [
+            col for col in st.session_state.md.columns
+            if filtered_md[col].notna().any()
+        ]
+        if not valid_color_cols:
+            valid_color_cols = list(st.session_state.md.columns)
 
-        # Display selected categories and their samples in a dataframe
-        # st.markdown(f"**Selected categories in '{att_col}':** {', '.join(map(str, selected_categories))}")
-        # st.dataframe(filtered_md[[att_col]], use_container_width=True)
-        
-        n_unique = filtered_md[att_col].nunique()
-        min_per_cat = filtered_md[st.session_state.pcoa_attribute].value_counts().min() if n_unique > 0 else 0
+        # Reset the color-by selection if it is no longer valid for the current filtered samples
+        if st.session_state.get("pcoa_color_by") not in valid_color_cols:
+            st.session_state["pcoa_color_by"] = valid_color_cols[0]
+
+        col_dist, col_color = st.columns(2)
+        with col_dist:
+            st.selectbox(
+                "Distance matrix",
+                ["braycurtis", "canberra", "chebyshev", "cityblock", "correlation", "cosine", "euclidean", "hamming", "jaccard", "matching", "minkowski", "seuclidean", "sqeuclidean"],
+                key="pcoa_distance_matrix",
+                index = 6
+            )
+        with col_color:
+            pcoa_color_by = st.selectbox(
+                "Color by (also controls PERMANOVA grouping)",
+                valid_color_cols,
+                key="pcoa_color_by",
+                help="Only metadata columns that have at least one value among the filtered samples are shown. The selected column is used to color the PCoA plot and as the grouping variable for PERMANOVA — independently of the filtering attribute above.",
+            )
+
+        # PERMANOVA uses the filtered samples, but grouped by the color-by attribute
+        perm_md = filtered_md[filtered_md[pcoa_color_by].notna()]
+        perm_data = filtered_data.loc[perm_md.index]
+        n_unique = perm_md[pcoa_color_by].nunique()
+        min_per_cat = perm_md[pcoa_color_by].value_counts().min() if n_unique > 0 else 0
         total_samples = len(filtered_md)
 
         if total_samples < 2:
@@ -195,15 +215,15 @@ try:
 
             if not can_permanova:
                 if n_unique < 2:
-                    st.warning("⚠️ PERMANOVA requires at least 2 categories — showing PCoA only.")
+                    st.warning(f"⚠️ PERMANOVA requires at least 2 categories in '{pcoa_color_by}' among the filtered samples — showing PCoA only.")
                 elif min_per_cat < 2:
-                    st.warning("⚠️ PERMANOVA requires at least 2 samples per category — showing PCoA only.")
+                    st.warning(f"⚠️ PERMANOVA requires at least 2 samples per category in '{pcoa_color_by}' among the filtered samples — showing PCoA only.")
 
             if can_permanova:
                 permanova, pcoa_result = permanova_pcoa(
-                    filtered_data,
+                    perm_data,
                     st.session_state.pcoa_distance_matrix,
-                    filtered_md[st.session_state.pcoa_attribute],
+                    perm_md[pcoa_color_by],
                 )
             else:
                 permanova = None
@@ -218,18 +238,16 @@ try:
             if len(available_pcs) < 2:
                 st.warning("Not enough principal coordinates available for plotting.")
             else:
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
                 with col1:
                     pcoa_x_axis = st.selectbox("Interested X-axis for plot", available_pcs, key="pcoa_x_axis")
                 with col2:
                     pcoa_y_axis = st.selectbox("Interested Y-axis for plot", available_pcs, index=1 if len(available_pcs) > 1 else 0, key="pcoa_y_axis")
-                with col3:
-                    pcoa_color_by = st.selectbox("Color by", st.session_state.md.columns, key="pcoa_color_by")
 
                 if att_col == pcoa_color_by:
-                    st.info("ℹ️ The **filter by** and **color by** categories are the same — the plot will be organized by that single metadata category.")
+                    st.info("ℹ️ The **filter by** and **color by / PERMANOVA grouping** categories are the same — the plot will be organized by that single metadata category.")
                 else:
-                    st.info(f"ℹ️ The **filter by** (*{att_col}*) and **color by** (*{pcoa_color_by}*) categories differ — points will be filtered and shaped by *{att_col}*, but colored by *{pcoa_color_by}*, creating subgroups.")
+                    st.info(f"ℹ️ The **filter by** (*{att_col}*) and **color by / PERMANOVA grouping** (*{pcoa_color_by}*) categories differ — points are filtered and shaped by *{att_col}*, but colored and grouped for PERMANOVA by *{pcoa_color_by}*.")
 
                 if pcoa_x_axis == pcoa_y_axis:
                     st.warning("⚠️ X-axis and Y-axis cannot be the same. Please choose different axes to view results.")
@@ -250,7 +268,7 @@ try:
                         with pcoa_tab:
                             fig = get_pcoa_scatter_plot(
                                 pcoa_result,
-                                st.session_state.md.loc[filtered_md.index],
+                                st.session_state.md.loc[pcoa_result.samples.index],
                                 pcoa_color_by,
                                 pcoa_x_axis,
                                 pcoa_y_axis,
@@ -264,8 +282,7 @@ try:
                             show_fig(fig, "pcoa-variance")
                             st.session_state["page_figs_pcoa_variance"] = fig
                         with data_tab:
-                            filtered_samples = pcoa_result.samples.loc[filtered_md.index]
-                            show_table(filtered_samples.iloc[:, :10], "principal-coordinates")
+                            show_table(pcoa_result.samples.iloc[:, :10], "principal-coordinates")
 
                     _render_pcoa_tabs(can_permanova and permanova is not None and not permanova.empty)
 
