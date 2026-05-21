@@ -174,6 +174,18 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         max_pca = min(10, pca_df.shape[1])
         pca_labels = [f"PC{i+1}" for i in range(max_pca)]
 
+        # Only offer columns that have at least one non-NaN value among the filtered samples
+        valid_color_cols = [
+            col for col in st.session_state.md.columns
+            if md_filtered[col].notna().any()
+        ]
+        if not valid_color_cols:
+            valid_color_cols = list(st.session_state.md.columns)
+
+        # Reset the color-by selection if it is no longer valid for the current filtered samples
+        if st.session_state.get("pca_color_by") not in valid_color_cols:
+            st.session_state["pca_color_by"] = valid_color_cols[0]
+
         # Axis selection and color option
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -183,7 +195,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             pca_y_axis = st.selectbox("Interested Y-Axis", pca_labels, index=1)
 
         with col3:
-            pca_color_by = st.selectbox("Color by", st.session_state.md.columns, key="pca_color_by")
+            pca_color_by = st.selectbox(
+                "Color by",
+                valid_color_cols,
+                key="pca_color_by",
+                help="Only metadata columns that have at least one value among the filtered samples are shown.",
+            )
 
         if attribute_col == pca_color_by:
             st.info("ℹ️ The **filter by** and **color by** categories are the same — the plot will be organized by that single metadata category.")
