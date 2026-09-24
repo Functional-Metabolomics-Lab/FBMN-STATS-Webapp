@@ -37,7 +37,7 @@ are measured under multiple conditions or time points.
 
 ##### 📊 Key outputs
 - **F** – F-statistic measuring the ratio of between-condition variance to within-subject error variance.
-- **p** – raw p-value for each metabolite.
+- **p** – p-value for each metabolite. Mauchly's test of sphericity is run for each metabolite; when sphericity is violated, the Greenhouse-Geisser corrected p-value is reported.
 - **p-corrected** – p-value adjusted for multiple comparisons (selected correction method).
 - **significant** – whether p-corrected < 0.05.
         """
@@ -61,6 +61,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         st.session_state.df_rm_anova = pd.DataFrame()
         st.session_state.pop("rm_anova_attempted_metabolites", None)
         st.session_state.pop("rm_anova_returned_metabolites", None)
+        # the old selection is not valid for the new attribute; fall back to all of its groups
+        st.session_state.pop("rm_anova_groups", None)
     st.session_state["_prev_rm_anova_attribute"] = rm_anova_attribute
 
     attribute = st.session_state.rm_anova_attribute
@@ -287,7 +289,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         _rma_pool = _rma_df[_rma_df["significant"] == _rma_want_sig]
                         if _rma_p_col:
                             _rma_pool = _rma_pool.sort_values(_rma_p_col)
-                        _rma_mets = list(_rma_pool.index[:_rma_top_n])
+                        _rma_mets = list(_rma_pool["metabolite"][:_rma_top_n])
                         _rma_label = f"top{_rma_top_n}_{'significant' if _rma_want_sig else 'insignificant'}"
                 if _rma_mets:
                     with st.spinner(f"Generating PDF — {len(_rma_mets)} boxplot(s)…"):

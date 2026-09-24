@@ -6,7 +6,8 @@ from src.randomforest import *
 def clear_rf_outputs():
     for key in [
         'df_oob', 'df_important_features', 'log', 'class_report', 'label_mapping',
-        'test_confusion_df', 'train_confusion_df', 'test_accuracy', 'train_accuracy']:
+        'test_confusion_df', 'train_confusion_df', 'test_accuracy', 'train_accuracy',
+        'oob_confusion_df', 'oob_accuracy']:
         if key in st.session_state:
             del st.session_state[key]
 
@@ -22,7 +23,7 @@ with st.expander("📖 About"):
     This app uses a **simplified RF implementation** — no hyperparameter optimization is applied, and users can only adjust the **number of trees**.
 
     After training, the app displays several useful outputs:
-    - **Out-of-Bag (OOB) error:** estimates model accuracy on unseen data, helping assess generalization performance  
+    - **Out-of-Bag (OOB) error:** estimates the model's error rate on unseen data, helping assess generalization performance  
     - **Feature importance list:** ranks which metabolites or variables contribute most to group classification  
     - **Classification report:** summarizes how well each group (class) was predicted through **precision**, **recall**, **F1-score**, and **support** — helping users understand whether the model over- or under-classifies certain groups  
     - **Confusion matrices:** show correct and incorrect predictions for both **training** and **test** sets, allowing users to visually compare how well the model generalizes  
@@ -35,12 +36,9 @@ with st.expander("📖 About"):
 
 
 if st.session_state.data is not None and not st.session_state.data.empty:
-    # Preserve original data and metadata
-    if 'data_full' not in st.session_state:
-        st.session_state['data_full'] = st.session_state.data.copy()
-    if 'md_full' not in st.session_state:
-        st.session_state['md_full'] = st.session_state.md.copy()
-
+    # Always read the current prepared data; never overwrite the global data/md here
+    data_full = st.session_state.data
+    md_full = st.session_state.md
 
     use_random_seed = st.checkbox(
         'Use a fixed random seed for reproducibility',
@@ -51,14 +49,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     c1, c2 = st.columns(2)
     c1.selectbox(
         "attribute for supervised learning feature classification",
-        options=[c for c in st.session_state.md_full.columns if len(set(st.session_state.md_full[c])) > 1],
+        options=[c for c in md_full.columns if len(set(md_full[c])) > 1],
         key="rf_attribute",
         on_change=clear_rf_outputs
     )
 
     # Always use the full metadata for category options
-    if st.session_state.rf_attribute is not None and st.session_state.rf_attribute in st.session_state.md_full.columns:
-        rf_categories_options = sorted(set(st.session_state.md_full[st.session_state.rf_attribute].dropna()))
+    if st.session_state.rf_attribute is not None and st.session_state.rf_attribute in md_full.columns:
+        rf_categories_options = sorted(set(md_full[st.session_state.rf_attribute].dropna()))
     else:
         rf_categories_options = []
 
@@ -91,16 +89,12 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             # Filter data and metadata to only include selected categories, but do NOT overwrite originals
             selected_categories = st.session_state.rf_categories
             if selected_categories:
-                mask = st.session_state.md_full[st.session_state.rf_attribute].isin(selected_categories)
-                data_filtered = st.session_state.data_full[mask]
-                md_filtered = st.session_state.md_full[mask]
+                mask = md_full[st.session_state.rf_attribute].isin(selected_categories)
+                data_filtered = data_full[mask]
+                md_filtered = md_full[mask]
             else:
-                data_filtered = st.session_state.data_full.copy()
-                md_filtered = st.session_state.md_full.copy()
-
-            # Temporarily set filtered data for model
-            st.session_state.data = data_filtered
-            st.session_state.md = md_filtered
+                data_filtered = data_full.copy()
+                md_filtered = md_full.copy()
 
             import time
             progress_placeholder = st.empty()
@@ -110,7 +104,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 progress = done / total
                 progress_placeholder.progress(progress, text=f"Fitting Random Forest model: step {done} of {total}")
                 time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
-            df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy = run_random_forest(st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed, _progress_callback=progress_callback)
+            df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy, oob_confusion_df, oob_accuracy = run_random_forest(data_filtered, md_filtered, st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed, _progress_callback=progress_callback)
             progress_placeholder.empty()
             time_placeholder.empty()
             st.session_state['df_oob'] = df_oob
@@ -122,10 +116,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state['train_confusion_df'] = train_confusion_df
             st.session_state['test_accuracy'] = test_accuracy
             st.session_state['train_accuracy'] = train_accuracy
-
-            # Restore full data/metadata after model run
-            st.session_state.data = st.session_state.data_full.copy()
-            st.session_state.md = st.session_state.md_full.copy()
+            st.session_state['oob_confusion_df'] = oob_confusion_df
+            st.session_state['oob_accuracy'] = oob_accuracy
         except Exception as e:
             st.error(f"Failed to run model due to: {str(e)}")
 else:
@@ -185,11 +177,11 @@ to reducing impurity across all trees in the forest.
 
         with fi_tab2:
             total_features = len(st.session_state.df_important_features)
-            max_slider = min(100, total_features)
+            max_slider = max(2, min(100, total_features))
             default_val = min(20, max_slider)
             n_features = st.slider(
                 "Number of top features to display",
-                min_value=5,
+                min_value=min(5, max_slider - 1),
                 max_value=max_slider,
                 value=default_val,
                 step=1,
@@ -238,11 +230,17 @@ A **Confusion Matrix** shows how many samples were classified correctly vs. inco
 
 - **Diagonal values** = correct predictions (true positives for each class).  
 - **Off-diagonal values** = misclassifications.  
-- The **Test Set** matrix reflects generalization to unseen data (80/20 split).  
+- The **Test Set** matrix reflects generalization to unseen data (held-out test split of at least 20%; see the log for the exact split).  
 - The **Training Set** matrix shows how well the model fits the training data.  
 
 If training accuracy is much higher than test accuracy, the model may be **overfitting**.
             """)
+        if 'oob_confusion_df' in st.session_state:
+            st.subheader("Out-of-Bag (OOB) Confusion Matrix — all samples")
+            st.caption("As in the protocol (rfPermute): each sample is predicted only by the trees that did not use it for training, with class-balanced sampling. Rows = true class, columns = predicted class.")
+            st.dataframe(st.session_state.oob_confusion_df)
+            st.write(f"OOB Accuracy: {st.session_state.oob_accuracy:.2%}")
+
         st.subheader("Train Set Confusion Matrix")
         st.dataframe(st.session_state.train_confusion_df)
         st.write(f"Train Set Accuracy: {st.session_state.train_accuracy:.2%}")

@@ -13,7 +13,7 @@ with st.expander("📖 About"):
         ANOVA (Analysis of Variance) is used to test whether the means of multiple groups differ significantly. 
         It evaluates variation within and between groups to determine if **at least one group mean is different**.
         When ANOVA indicates a significant difference, a Tukey’s post-hoc test can be used to compare specific pairs of groups.
-        In this app, users can select any two groups to perform Tukey’s test, which adjusts for multiple comparisons and identifies whether their means differ significantly.
+        In this app, users can select any two groups to inspect with Tukey’s test. The test is fit on all groups included in the ANOVA (pooled error variance, adjusted for all pairwise comparisons), and the result for the selected pair is reported. Tukey’s test is only run on features that were significant in the ANOVA.
        """
        )
     
@@ -51,6 +51,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state.pop("anova_returned_metabolites", None)
             st.session_state.pop("tukey_attempted_metabolites", None)
             st.session_state.pop("tukey_returned_metabolites", None)
+            # the old selection is not valid for the new attribute; fall back to all of its groups
+            st.session_state.pop("anova_groups", None)
 
         st.session_state["_prev_anova_attribute"] = anova_attribute
 
@@ -375,8 +377,11 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     st.session_state["page_figs_tukey_teststat"] = fig1
 
                     fig2 = get_tukey_volcano_plot(getattr(st.session_state.df_tukey, '_original', st.session_state.df_tukey))
-                    show_fig(fig2, "tukeys-volcano")
-                    st.session_state["page_figs_tukey_volcano"] = fig2
+                    if fig2 is not None:
+                        show_fig(fig2, "tukeys-volcano")
+                        st.session_state["page_figs_tukey_volcano"] = fig2
+                    else:
+                        st.info("Fold-change volcano plot not shown: fold changes are undefined for centred/scaled data (negative group means). The plot above shows the difference of group means, as in the protocol.")
 
                 with tukey_sub_tabs[1]:
                     df_tukey = st.session_state.df_tukey.copy()

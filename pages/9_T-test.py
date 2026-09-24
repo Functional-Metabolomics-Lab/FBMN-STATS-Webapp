@@ -16,8 +16,8 @@ This module compares the means of two groups to assess whether they differ signi
 ##### 🧪 Choosing the right test
 - **Student's t-test** – the classic and most widely used version; assumes both groups have *equal variances* and are *normally distributed*. It's suitable for balanced datasets.  
 - **Welch's t-test** – a more robust variant that does *not* assume equal variances or sample sizes. It's recommended for most real-world biological data.  
-- **Paired t-test** – used when both measurements come from the **same or matched samples** (e.g., before vs. after treatment).  
-- **Auto** – defaults to **Welch's t-test**. You can check the **Parametric Assumptions Evaluation** page to confirm whether equal variances hold in your data.  
+- **Paired t-test** – used when both measurements come from the **same or matched samples** (e.g., before vs. after treatment). Requires a **subject/pairing column** in the metadata; samples are matched by it, and subjects not measured in both groups are excluded. The Welch/Student choice does not apply to paired tests.
+- **Auto** – defaults to **Welch's t-test** for unpaired data. You can check the **Parametric Assumptions Evaluation** page to confirm whether equal variances hold in your data.
 
 ##### ⚙️ Alternative hypotheses
 - **Two-sided (default):** tests whether the two means differ in *either direction*.  
@@ -27,19 +27,19 @@ Most studies use **two-sided** unless there's a strong directional expectation.
 
 ##### 📊 Key outputs
 - **T** – test statistic measuring difference magnitude relative to variability.  
-- **p-val** – probability that the observed difference is due to chance (p < 0.05 = significant).  
-- **dof** – degrees of freedom, based on group sizes and test type.  
-- **Cohen's d** – effect size (0.2 = small, 0.5 = medium, 0.8 = large).  
-- **BF10** – Bayes Factor showing evidence for the alternative hypothesis (> 3 = moderate evidence).  
-- **Power** – likelihood of correctly detecting a true difference.  
-- **p-corrected (FDR)** – adjusted p-values accounting for multiple comparisons across all metabolites.  
-- **Significance** – marks whether the adjusted result remains significant (after FDR).  
+- **p_val** – probability of observing a difference at least this extreme if there were truly no difference between the groups (p < 0.05 = significant).
+- **dof** – degrees of freedom, based on group sizes and test type.
+- **cohen_d** – effect size (0.2 = small, 0.5 = medium, 0.8 = large).
+- **BF10** – Bayes Factor showing evidence for the alternative hypothesis (> 3 = moderate evidence).
+- **power** – estimated (post-hoc) probability of detecting a difference of the observed size.
+- **p-corrected** – p-values adjusted for multiple comparisons across all metabolites, using the correction method selected in the sidebar (e.g., FDR Benjamini-Hochberg).
+- **Significance** – marks whether the corrected p-value is below 0.05.
 - **ttest_type** – identifies which test (Student, Welch, or Paired) was applied.
 
-##### Why apply FDR correction?
-Even though the t-test compares only two groups, each metabolite is tested separately — often hundreds or thousands at once.  
-This creates a *multiple-testing problem*, where some features appear significant by chance.  
-The **False Discovery Rate (FDR)** correction adjusts for this, helping ensure that identified metabolites remain statistically significant after accounting for multiple comparisons.
+##### Why apply a multiple-testing correction?
+Even though the t-test compares only two groups, each metabolite is tested separately — often hundreds or thousands at once.
+This creates a *multiple-testing problem*, where some features appear significant by chance.
+Corrections such as the **False Discovery Rate (FDR)** or **Bonferroni** adjust for this. Choose the method in the sidebar; with "no correction", p-corrected equals the raw p-value.
     """)
 
 # Ensure st.session_state.df_ttest is initialized
@@ -111,7 +111,36 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         on_change=clear_ttest_data
     )
 
-    if c1.button("Run t-test", type="primary", disabled=(len(st.session_state.ttest_options) != 2)):
+    pairing_ok = True
+    if st.session_state.ttest_paired:
+        subject_options = [c for c in st.session_state.md.columns if c != st.session_state.ttest_attribute]
+        st.selectbox(
+            "subject / pairing column",
+            options=subject_options,
+            key="ttest_subject",
+            help="Metadata column that identifies which samples belong together (e.g., the same patient before and after treatment).",
+            on_change=clear_ttest_data,
+        )
+        pairing_ok = False
+        if len(st.session_state.ttest_options) == 2 and st.session_state.get("ttest_subject"):
+            from src.utils import check_pairing
+            n_pairs, duplicated_subjects = check_pairing(
+                st.session_state.md, st.session_state.ttest_attribute,
+                st.session_state.ttest_subject, st.session_state.ttest_options,
+            )
+            if duplicated_subjects:
+                st.error(
+                    f"Some subjects have more than one sample in the same group, so pairing is ambiguous: "
+                    f"{', '.join(duplicated_subjects[:10])}{' …' if len(duplicated_subjects) > 10 else ''}. "
+                    "Please choose a column that uniquely identifies each pair."
+                )
+            elif n_pairs < 2:
+                st.error("Fewer than 2 subjects are measured in both groups. Please check the subject/pairing column.")
+            else:
+                st.info(f"{n_pairs} complete subject pairs found.")
+                pairing_ok = True
+
+    if c1.button("Run t-test", type="primary", disabled=(len(st.session_state.ttest_options) != 2 or not pairing_ok)):
         # Map label to value for correction
         correction_value = correction_options[st.session_state.ttest_correction_label]
         
@@ -131,6 +160,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state.ttest_alternative,
             correction_value,
             corrections_map[st.session_state.p_value_correction],
+            subject_col=st.session_state.get("ttest_subject") if st.session_state.ttest_paired else None,
             _progress_callback=progress_callback
         )
         

@@ -29,12 +29,18 @@ dataframe_names = ("md",
                    "df_wilcoxon",
                    "df_friedman")
 
-corrections_map = {"no correction": "none",
-                   "Benjamini/Hochberg FDR": "fdr_bh",
+# Benjamini/Hochberg is listed first so it is the default, as in the FBMN-STATS protocol
+# ("In all our univariate tests, we apply the BH metric to our P values").
+corrections_map = {"Benjamini/Hochberg FDR": "fdr_bh",
+                   "no correction": "none",
                    "Sidak": "sidak",
                    "Bonferroni": "bonf",
                    "Benjamini/Yekutieli FDR": "fdr_by",
                    }
+
+# the same methods under the names used by statsmodels / scikit-posthocs
+posthocs_correction_map = {"fdr_bh": "fdr_bh", "none": None, "sidak": "sidak",
+                           "bonf": "bonferroni", "fdr_by": "fdr_by"}
 
 def reset_dataframes():
     for key in dataframe_names:
@@ -236,12 +242,41 @@ def _fix_dataframe_types(df):
     
     return df
 
+# Large tables (e.g. Everything Bagel jobs with tens of thousands of features x hundreds of samples)
+# are only previewed: sending them whole to the browser exceeds Streamlit's message size limit
+# (server.maxMessageSize, 200 MB) and makes every rerun slow.
+MAX_DISPLAY_CELLS = 500_000
+MAX_DISPLAY_COLS = 1_000
+
+def display_dataframe(df, title="table", col=None, hide_index=False):
+    """st.dataframe that previews large tables and offers the full table as a CSV download."""
+    col = col or st
+    n_rows, n_cols = df.shape
+    if n_rows * n_cols <= MAX_DISPLAY_CELLS and n_cols <= MAX_DISPLAY_COLS:
+        col.dataframe(df, use_container_width=True, hide_index=hide_index)
+        return
+    shown_cols = min(n_cols, MAX_DISPLAY_COLS)
+    shown_rows = max(1, min(n_rows, MAX_DISPLAY_CELLS // shown_cols))
+    col.dataframe(df.iloc[:shown_rows, :shown_cols], use_container_width=True, hide_index=hide_index)
+    col.caption(
+        f"Large table: showing the first {shown_rows:,} of {n_rows:,} rows and {shown_cols:,} of {n_cols:,} columns. "
+        "Download the full table below."
+    )
+    col.download_button(
+        "Download full table (CSV)",
+        data=lambda: df.to_csv(index=not hide_index).encode(),  # only built when clicked
+        file_name=f"{title or 'table'}.csv",
+        mime="text/csv",
+        key=f"download_full_{title}",
+        on_click="ignore",
+    )
+
 def show_table(df, title="", col="", download=True, hide_index=False):
     if col:
         col = col
     else:
         col = st
-    col.dataframe(df, use_container_width=True, hide_index=hide_index)
+    display_dataframe(df, title=title, col=col, hide_index=hide_index)
 
     # Persist shown tables keyed by page so the LLM chat can access them
     current_page = st.session_state.get("current_page", "")

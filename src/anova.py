@@ -42,7 +42,7 @@ def gen_anova_data(df, columns, groups_col, _progress_callback=None):
             row = result.iloc[0]
 
         p = None
-        p_candidates = ["p"]
+        p_candidates = ["p_unc", "p-unc", "p"]
         for pc in p_candidates:
             if pc in result.columns:
                 try:
@@ -138,7 +138,7 @@ def anova(df, attribute, correction, elements, _progress_callback=None):
 
 @st.cache_resource(show_spinner="Creating ANOVA plot...")
 def get_anova_plot(anova, color_by=None):
-    """ANOVA scatter: x=log(F), y=-log(p). Add hover text with feature name if available."""
+    """ANOVA scatter: x=ln(F), y=-log10(p-corrected) (protocol Step 62). Add hover text with feature name if available."""
     feature_map = get_feature_name_map()
     
 
@@ -162,7 +162,7 @@ def get_anova_plot(anova, color_by=None):
         fig.add_trace(
             go.Scatter(
                 x=np.log(ins["F"]),
-                y=-np.log(ins["p"]),
+                y=-np.log10(ins["p-corrected"].astype(float).clip(lower=1e-300)),
                 mode="markers",
                 marker=dict(color="#696880"),
                 name="insignificant",
@@ -188,7 +188,7 @@ def get_anova_plot(anova, color_by=None):
                     fig.add_trace(
                         go.Scatter(
                             x=np.log(group_sig["F"]),
-                            y=-np.log(group_sig["p"]),
+                            y=-np.log10(group_sig["p-corrected"].astype(float).clip(lower=1e-300)),
                             mode="markers",
                             marker=dict(color=colors[gi % len(colors)]),
                             name=f"{group}",
@@ -200,7 +200,7 @@ def get_anova_plot(anova, color_by=None):
             fig.add_trace(
                 go.Scatter(
                     x=np.log(sig["F"]),
-                    y=-np.log(sig["p"]),
+                    y=-np.log10(sig["p-corrected"].astype(float).clip(lower=1e-300)),
                     mode="markers",
                     marker=dict(color="#ef553b"),
                     name="significant",
@@ -215,8 +215,8 @@ def get_anova_plot(anova, color_by=None):
             "text": f"ANOVA - {st.session_state.anova_attribute.upper()}",
             "font_color": "#3E3D53"
         },
-        xaxis_title="log(F)",
-        yaxis_title="-log(p)",
+        xaxis_title="ln(F)",
+        yaxis_title="-log10(p-corrected)",
         showlegend=True,
         legend=dict(
             itemsizing='trace',
@@ -245,9 +245,8 @@ def get_metabolite_boxplot(anova, metabolite):
     if "anova_groups" in st.session_state and st.session_state.anova_groups:
         df = df[df[attribute].isin(st.session_state.anova_groups)]
 
-    df = df.reset_index().rename(columns={"index": "filename"})
-    if df.columns[0] == "filename" and st.session_state.data.index.name:
-        df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
+    # sample names -> "filename" column, regardless of whether the index is named
+    df = df.rename_axis("filename").reset_index()
 
     feature_map = get_feature_name_map()
     metabolite_name = feature_map.get(metabolite, metabolite) if feature_map else metabolite
@@ -285,10 +284,15 @@ def get_metabolite_boxplot(anova, metabolite):
     )
     return fig
 
-def gen_pairwise_tukey(df, _metabolites, attribute, _progress_callback=None):
-    """Return a list of results for pairwise Tukey test for all metabolites between two options 
-    within the attribute."""
-    
+def gen_pairwise_tukey(df, _metabolites, attribute, pair, _progress_callback=None):
+    """Return a list of Tukey HSD results for the selected pair of groups for all metabolites.
+
+    Tukey's HSD is fit on all groups in `df` (the ANOVA groups), so the pooled error
+    variance and the family-wise adjustment cover every pairwise comparison. The row for
+    `pair` is then extracted and oriented so that A = pair[0] and B = pair[1]
+    (diff = mean(A) - mean(B)).
+    """
+
     import time
     results = []
     total = len(_metabolites)
@@ -309,18 +313,29 @@ def gen_pairwise_tukey(df, _metabolites, attribute, _progress_callback=None):
 
         if tukey.empty:
             continue
-        results.append(
-            (
-            metabolite,
-            tukey.loc[0, "diff"],
-            tukey.loc[0, "p-tukey"],
-            attribute,
-            tukey.loc[0, "A"],
-            tukey.loc[0, "B"],
-            tukey.loc[0, "mean(A)"],
-            tukey.loc[0, "mean(B)"],
-            )
-        )
+
+        # pingouin >= 0.6 column names: A, B, mean_A, mean_B, diff, p_tukey
+        p_col = next((c for c in ["p_tukey", "p-tukey"] if c in tukey.columns), None)
+        mean_a_col = next((c for c in ["mean_A", "mean(A)"] if c in tukey.columns), None)
+        mean_b_col = next((c for c in ["mean_B", "mean(B)"] if c in tukey.columns), None)
+        if p_col is None or mean_a_col is None or mean_b_col is None:
+            continue
+
+        a, b = str(pair[0]), str(pair[1])
+        tukey_a = tukey["A"].astype(str)
+        tukey_b = tukey["B"].astype(str)
+        forward = tukey[(tukey_a == a) & (tukey_b == b)]
+        reverse = tukey[(tukey_a == b) & (tukey_b == a)]
+        if not forward.empty:
+            row = forward.iloc[0]
+            diff, mean_a, mean_b = row["diff"], row[mean_a_col], row[mean_b_col]
+        elif not reverse.empty:
+            row = reverse.iloc[0]
+            diff, mean_a, mean_b = -row["diff"], row[mean_b_col], row[mean_a_col]
+        else:
+            continue
+
+        results.append((metabolite, diff, row[p_col], attribute, pair[0], pair[1], mean_a, mean_b))
     return results
 
 def tukey(df, attribute, elements, correction, _progress_callback=None):
@@ -340,16 +355,22 @@ def tukey(df, attribute, elements, correction, _progress_callback=None):
         # fallback: some ANOVA functions return feature names as index
         anova_mets = df.index.astype(str).tolist()
 
+    # Tukey's HSD is fit on all groups that went into the ANOVA, not only the selected pair
+    all_groups = list(st.session_state.get("anova_groups") or elements)
+    for g in elements:
+        if g not in all_groups:
+            all_groups.append(g)
+
     valid_metabolites = [m for m in anova_mets if m in st.session_state.data.columns]
     if elements is not None:
         md_attr = st.session_state.md.loc[:, attribute]
         filtered_valid = []
         for m in valid_metabolites:
             tmp = pd.concat([st.session_state.data.loc[:, m], md_attr], axis=1)
-            tmp = tmp[tmp[attribute].isin(elements)]
+            tmp = tmp[tmp[attribute].isin(all_groups)]
             tmp = tmp.dropna(subset=[m, attribute])
             present_groups = set(tmp[attribute].astype(str).unique())
-            if all(str(g) in present_groups for g in elements):
+            if all(str(g) in present_groups for g in all_groups):
                 filtered_valid.append(m)
         valid_metabolites = filtered_valid
     st.session_state.tukey_attempted_metabolites = len(valid_metabolites)
@@ -361,10 +382,10 @@ def tukey(df, attribute, elements, correction, _progress_callback=None):
 
     data = pd.concat([st.session_state.data.loc[:, valid_metabolites],
             st.session_state.md.loc[:, attribute]], axis=1)
-    data = data[data[attribute].isin(elements)]
-    
+    data = data[data[attribute].isin(all_groups)]
+
     _tukey_rows = gen_pairwise_tukey(
-        data, valid_metabolites, attribute, _progress_callback=_progress_callback
+        data, valid_metabolites, attribute, elements, _progress_callback=_progress_callback
     )
     if _tukey_rows:
         _met, _diff, _p, _attr, _a, _b, _mean_a, _mean_b = zip(*_tukey_rows)
@@ -423,24 +444,22 @@ def get_tukey_teststat_plot(df, color_by=None):
     feature_map = _get_tukey_feature_map(df)
     fig = go.Figure()
 
-    sample_ids = list(st.session_state.data.index) if hasattr(st.session_state.data, 'index') else None
     def make_hovertext(metabolites):
         htext = []
-        brk = "<br>"
-        for i, m in enumerate(metabolites):
+        for m in metabolites:
             met_name = feature_map[m] if feature_map and m in feature_map else str(m)
-            filename = sample_ids[i % len(sample_ids)] if sample_ids else "N/A"
-            htext.append(f"filename: {filename}<br>metabolite: {met_name}")
+            htext.append(f"metabolite: {met_name}")
         return htext
 
-    p_numeric = getattr(df, '_original', df)["p"] if hasattr(df, '_original') else df["p"]
+    # protocol Step 67: volcano plot of the group difference vs -log(p_BH), i.e. the corrected p-value
+    p_numeric = pd.to_numeric(df["p-corrected"], errors="coerce").clip(lower=1e-300)
     ins = df[df["significant"] == False]
     if not ins.empty:
         ins_numeric = p_numeric[ins.index]
         fig.add_trace(
             go.Scatter(
                 x=ins["diff"],
-                y=-np.log(ins_numeric.astype(float)),
+                y=-np.log10(ins_numeric.astype(float)),
                 mode="markers",
                 marker=dict(color="#696880"),
                 name="insignificant",
@@ -469,7 +488,7 @@ def get_tukey_teststat_plot(df, color_by=None):
                     fig.add_trace(
                         go.Scatter(
                             x=group_sig["diff"],
-                            y=-np.log(group_sig_p.astype(float)),
+                            y=-np.log10(group_sig_p.astype(float)),
                             mode="markers",
                             marker=dict(color=colors[gi % len(colors)]),
                             name=f"{group}",
@@ -481,7 +500,7 @@ def get_tukey_teststat_plot(df, color_by=None):
             fig.add_trace(
                 go.Scatter(
                     x=sig["diff"],
-                    y=-np.log(sig_numeric.astype(float)),
+                    y=-np.log10(sig_numeric.astype(float)),
                     mode="markers+text",
                     marker=dict(color="#ef553b"),
                     text=["" for _ in sig["metabolite"]],
@@ -496,21 +515,24 @@ def get_tukey_teststat_plot(df, color_by=None):
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
         title={
-            "text": f"TUKEY - {st.session_state.anova_attribute.upper()}: {st.session_state.tukey_elements[0]} - {st.session_state.tukey_elements[1]} (test-statistic)",
+            "text": f"TUKEY - {st.session_state.anova_attribute.upper()}: {st.session_state.tukey_elements[0]} - {st.session_state.tukey_elements[1]} (volcano: difference of means)",
             "font_color": "#3E3D53",
         },
-        xaxis_title="diff (mean B - mean A)",
-        yaxis_title="-log(p)",
+        xaxis_title=f"difference of group means (mean {st.session_state.tukey_elements[0]} - mean {st.session_state.tukey_elements[1]})",
+        yaxis_title="-log10(p-corrected)",
         template="plotly_white",
     )
     return fig
 
 @st.cache_resource(show_spinner="Creating Tukey volcano plot...")
 def get_tukey_volcano_plot(df):
-    """Volcano plot for Tukey: x = log2 fold change (mean(B)/mean(A)), y = -log10(p-value).
-    Adds metabolite/feature hover labels.
+    """Fold-change volcano plot for Tukey: x = log2(mean(B)/mean(A)), y = -log10(p-corrected).
+    Fold changes are only defined for non-negative (not centred/scaled) intensities; returns None otherwise.
     """
     feature_map = _get_tukey_feature_map(df)
+
+    if (df["mean_A"].astype(float) <= 0).any() or (df["mean_B"].astype(float) <= 0).any():
+        return None
 
     # compute log2 fold change (B relative to A). avoiding zeros by using a small epsilon
     eps = 1e-9
@@ -518,17 +540,15 @@ def get_tukey_volcano_plot(df):
     meanB = df["mean_B"].astype(float) + eps
     df = df.copy()
     df["log2FC"] = np.log2(meanB/meanA)
-    df["neglog10p"] = -np.log10(df["p"].astype(float) + eps)
+    df["neglog10p"] = -np.log10(pd.to_numeric(df["p-corrected"], errors="coerce").clip(lower=1e-300))
 
     fig = go.Figure()
 
-    sample_ids = list(st.session_state.data.index) if hasattr(st.session_state.data, 'index') else None
     def make_hovertext(metabolites):
         htext = []
-        for i, m in enumerate(metabolites):
+        for m in metabolites:
             met_name = feature_map[m] if feature_map and m in feature_map else str(m)
-            filename = sample_ids[i % len(sample_ids)] if sample_ids else "N/A"
-            htext.append(f"filename: {filename}<br>metabolite: {met_name}")
+            htext.append(f"metabolite: {met_name}")
         return htext
 
     ins = df[df["significant"] == False]
@@ -588,8 +608,8 @@ def get_tukey_volcano_plot(df):
             "text": f"TUKEY - {st.session_state.anova_attribute.upper()}: {st.session_state.tukey_elements[0]} - {st.session_state.tukey_elements[1]} (volcano)",
             "font_color": "#3E3D53",
         },
-        xaxis_title="log2(mean B/mean A)",
-        yaxis_title="-log10(p)",
+        xaxis_title=f"log2(mean {st.session_state.tukey_elements[1]} / mean {st.session_state.tukey_elements[0]})",
+        yaxis_title="-log10(p-corrected)",
         template="plotly_white",
         legend=dict(
             title="Legend",

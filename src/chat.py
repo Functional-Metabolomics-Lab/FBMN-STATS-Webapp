@@ -15,7 +15,8 @@ load_dotenv()
 LITELLM_API_KEY = os.getenv("LITELLM_API_KEY")
 if LITELLM_API_KEY and not LITELLM_API_KEY.startswith("Bearer "):
 	LITELLM_API_KEY = "Bearer " + LITELLM_API_KEY
-LITELLM_API_BASE = os.getenv("LITELLM_API_BASE", "https://litellm.wanglab.science/v1")
+# use `or` so an empty LITELLM_API_BASE= line in .env still falls back to the default
+LITELLM_API_BASE = os.getenv("LITELLM_API_BASE") or "https://litellm.wanglab.science/v1"
 LLM_MODEL = "openai/gemini-3-flash-preview"
 
 # Google Gemini fallback (used locally when LITELLM_API_KEY is not set)
@@ -60,6 +61,14 @@ def build_analysis_context_summary():
 		"hca_committed_categories", "hca_committed_samples",
 		"rf_categories", "anova_groups", "kruskal_groups",
 		"ttest_options", "mwu_options",
+		"pca_color_by", "pcoa_color_by", "normalization_method_used",
+		"test_options", "tukey_elements", "dunn_elements",
+		"ttest_paired", "ttest_subject", "ttest_correction_label", "ttest_alternative",
+		"mwu_alternative",
+		"wilcoxon_attribute", "wilcoxon_options", "wilcoxon_subject", "wilcoxon_alternative",
+		"friedman_attribute", "friedman_groups", "friedman_subject",
+		"rm_anova_attribute", "rm_anova_groups", "rm_anova_subject",
+		"p_value_correction",
 	]
 	param_summary = []
 	for key in param_keys:
@@ -191,7 +200,7 @@ _PAGE_FIGURE_KEYS = {
 	"Mann-Whitney U": ["page_figs_mwu_sig", "page_figs_mwu_boxplot"],
 	"Wilcoxon Signed-Rank": ["page_figs_wilcoxon_sig", "page_figs_wilcoxon_boxplot"],
 	"Friedman": ["page_figs_friedman_plot", "page_figs_friedman_boxplot"],
-	"Repeated Measures ANOVA": ["page_figs_rm_anova_plot"],
+	"Repeated Measures ANOVA": ["page_figs_rm_anova_plot", "page_figs_rm_anova_boxplot"],
 }
 
 _PAGE_TABLE_KEYS = {
@@ -361,7 +370,8 @@ def call_llm_with_context(user_message):
 		"### 1. Parameter Recommendations\n"
 		"Proactively recommend which parameters to set on the current page based on the user's data and goals. "
 		"Use the page context (provided below) to explain what each parameter does and suggest sensible values. "
-		"For example: recommend a distance metric for PCoA (e.g., Bray-Curtis for relative abundance data), "
+		"For example: recommend a distance metric for PCoA (e.g., Bray-Curtis for non-negative relative abundance data, "
+		"but Euclidean after Center-Scaling since scaled data contain negative values), "
 		"advise on the number of trees for Random Forest, explain which attribute to group by, "
 		"or guide the user on advanced filtering to include or exclude specific samples or categories.\n\n"
 

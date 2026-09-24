@@ -14,14 +14,14 @@ with st.expander("📖 About"):
 The **Friedman test** is a non-parametric alternative to **repeated-measures one-way ANOVA**.
 It checks whether there are statistically significant differences **among three or more paired/matched groups** without assuming normal distribution or equal variances.
 
-If the Friedman test indicates significant differences, you can apply a **pairwise Wilcoxon signed-rank post-hoc** test to directly compare a specific pair of groups and identify where those differences occur.
+If the Friedman test indicates significant differences, you can use the **Wilcoxon Signed-Rank** page to compare a specific pair of groups and identify where those differences occur (a post-hoc test is not run on this page).
 
 ##### 🧪 When to use it
 - When samples are **paired or matched** across three or more conditions (e.g., multiple time points on the same subjects, before / during / after treatment).
 - When your data are **not normally distributed** or contain outliers.
 - As a robust alternative to repeated-measures ANOVA.
 
-> ⚠️ **Important:** This test requires that all groups contain the **same number of samples**, ordered to reflect the pairing (i.e., sample *i* in each group represents the same subject or matched observation). Groups are truncated to the shortest group length automatically.
+> ⚠️ **Important:** This test requires a **subject/pairing column** in your metadata that identifies the same subject (or matched set) across conditions. Samples are matched by this column, and subjects that are not measured in every selected group are excluded.
 
 ##### 🧪 Choosing between tests
 | Data structure | Parametric | Non-parametric |
@@ -34,14 +34,9 @@ If the Friedman test indicates significant differences, you can apply a **pairwi
 ##### 📊 Key outputs — Friedman
 - **statistic** – Friedman chi-squared statistic.
 - **p** – raw p-value.
-- **p-corrected** – p-value adjusted for multiple comparisons (FDR).
+- **p-corrected** – p-value adjusted for multiple comparisons across metabolites, using the correction method selected in the sidebar.
 - **significant** – whether p-corrected < 0.05.
-
-##### 📊 Key outputs — Post-hoc (pairwise Wilcoxon)
-- **W-val** – Wilcoxon W statistic for the pair.
-- **p** – raw p-value from the pairwise Wilcoxon signed-rank test.
-- **p-corrected** – adjusted p-value.
-- **significant** – whether the pairwise comparison remains significant after correction.
+- **n subjects** – number of complete subjects (blocks) used for the test.
         """
     )
 
@@ -60,6 +55,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         st.session_state.df_friedman = pd.DataFrame()
         st.session_state.pop("friedman_attempted_metabolites", None)
         st.session_state.pop("friedman_returned_metabolites", None)
+        # the old selection is not valid for the new attribute; fall back to all of its groups
+        st.session_state.pop("friedman_groups", None)
     st.session_state["_prev_friedman_attribute"] = friedman_attribute
 
     attribute = st.session_state.friedman_attribute
@@ -86,8 +83,39 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         st.session_state.pop("friedman_returned_metabolites", None)
     st.session_state["_prev_friedman_groups"] = list(friedman_groups)
 
+    # --- Subject selector ---
+    subject_options = [c for c in st.session_state.md.columns if c != attribute]
+    prev_friedman_subject = st.session_state.get("_prev_friedman_subject", None)
+    friedman_subject = c1.selectbox(
+        "subject / pairing column",
+        options=subject_options,
+        key="friedman_subject",
+        help="Metadata column that identifies the same subject (or matched set) across the selected groups.",
+    )
+    if prev_friedman_subject is not None and friedman_subject != prev_friedman_subject:
+        st.session_state.df_friedman = pd.DataFrame()
+        st.session_state.pop("friedman_attempted_metabolites", None)
+        st.session_state.pop("friedman_returned_metabolites", None)
+    st.session_state["_prev_friedman_subject"] = friedman_subject
+
     min_required = 3
-    run_disabled = not ("friedman_groups" in st.session_state and len(st.session_state.friedman_groups) >= min_required)
+    pairing_ok = False
+    if friedman_subject is not None and len(friedman_groups) >= min_required:
+        from src.utils import check_pairing
+        n_subjects, duplicated_subjects = check_pairing(st.session_state.md, attribute, friedman_subject, friedman_groups)
+        if duplicated_subjects:
+            st.error(
+                f"Some subjects have more than one sample in the same group, so blocks are ambiguous: "
+                f"{', '.join(duplicated_subjects[:10])}{' …' if len(duplicated_subjects) > 10 else ''}. "
+                "Please choose a column that uniquely identifies each subject."
+            )
+        elif n_subjects < 2:
+            st.error("Fewer than 2 subjects are measured in all selected groups. Please check the subject/pairing column.")
+        else:
+            st.info(f"{n_subjects} subjects are measured in all selected groups.")
+            pairing_ok = True
+
+    run_disabled = not ("friedman_groups" in st.session_state and len(st.session_state.friedman_groups) >= min_required) or not pairing_ok
 
     st.button("Run Friedman test", key="run_friedman", type="primary", disabled=run_disabled)
 
@@ -114,6 +142,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 st.session_state.friedman_attribute,
                 corrections_map[st.session_state.p_value_correction],
                 elements=st.session_state.friedman_groups,
+                subject_col=st.session_state.friedman_subject,
                 _progress_callback=progress_callback,
             )
             progress_placeholder.empty()
@@ -121,8 +150,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
             if result.empty:
                 st.error(
-                    "No results were returned. Ensure all groups have the **same number of samples** "
-                    "(required for a paired design) and at least 2 observations each."
+                    "No results were returned. Ensure at least 2 subjects are measured in every "
+                    "selected group."
                 )
             else:
                 st.session_state.df_friedman = result
@@ -273,7 +302,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         _fri_pool = _fri_df[_fri_df["significant"] == _fri_want_sig]
                         if _fri_p_col:
                             _fri_pool = _fri_pool.sort_values(_fri_p_col)
-                        _fri_mets = list(_fri_pool.index[:_fri_top_n])
+                        _fri_mets = list(_fri_pool["metabolite"][:_fri_top_n])
                         _fri_label = f"top{_fri_top_n}_{'significant' if _fri_want_sig else 'insignificant'}"
                 if _fri_mets:
                     with st.spinner(f"Generating PDF — {len(_fri_mets)} boxplot(s)…"):

@@ -13,14 +13,22 @@ from src.utils import get_feature_name_map
 # Friedman omnibus test
 # ---------------------------------------------------------------------------
 
-def gen_friedman_data(group_data, _progress_callback=None):
-    """Yield (metabolite, p, chi2) for each metabolite column
-    across 3+ paired groups (equal-length arrays, matched by row index)."""
-    total = len(group_data[0].columns)
+def gen_friedman_data(combined, metabolite_cols, attribute, subject_col, groups, _progress_callback=None):
+    """Yield (metabolite, p, chi2, n_subjects) for each metabolite column across 3+ paired groups.
+
+    Blocks are subjects: for each metabolite a subjects x groups table is built from the
+    `subject_col` metadata column, and only subjects measured in every group are used.
+    """
+    from src.utils import paired_wide
+
+    total = len(metabolite_cols)
     start_time = time.time()
-    for idx, col in enumerate(group_data[0].columns):
-        arrays = [df[col].values for df in group_data]
+    for idx, col in enumerate(metabolite_cols):
         try:
+            wide = paired_wide(combined, col, attribute, subject_col, groups)
+            if len(wide) < 2:
+                raise ValueError("fewer than 2 complete subjects")
+            arrays = [wide[g].astype(float).values for g in groups]
             statistic, p = friedmanchisquare(*arrays)
         except ValueError:
             if _progress_callback is not None:
@@ -36,7 +44,7 @@ def gen_friedman_data(group_data, _progress_callback=None):
             est_left = (elapsed / done) * (total - done) if done > 0 else 0
             _progress_callback(done, total, est_left)
 
-        yield col, p, statistic
+        yield col, p, statistic, len(wide)
 
 
 def add_p_correction_to_friedman(df, correction):
@@ -49,13 +57,13 @@ def add_p_correction_to_friedman(df, correction):
     return df
 
 
-def friedman_test(attribute, correction, elements, _progress_callback=None):
+def friedman_test(attribute, correction, elements, subject_col, _progress_callback=None):
     """Run a Friedman test per metabolite for *elements* groups within *attribute*.
 
-    Paired design: the groups are truncated to the shortest group length so that
-    row *i* in each group represents the same subject / matched observation.
+    Paired design: samples are matched across groups by the metadata column
+    *subject_col*; subjects that are not measured in every group are excluded.
     """
-    combined = pd.concat([st.session_state.data, st.session_state.md], axis=1)
+    combined = pd.concat([st.session_state.data, st.session_state.md[[attribute, subject_col]]], axis=1)
     if elements is not None:
         combined = combined[combined[attribute].isin(elements)]
 
@@ -81,25 +89,13 @@ def friedman_test(attribute, correction, elements, _progress_callback=None):
         st.session_state.friedman_returned_metabolites = 0
         return pd.DataFrame()
 
-    # Build per-group dataframes, reset index for row-wise pairing
-    group_data_raw = [
-        combined[combined[attribute] == g].loc[:, metabolite_cols].reset_index(drop=True)
-        for g in groups
-    ]
-
-    # Truncate to equal length (shortest group)
-    min_len = min(len(gdf) for gdf in group_data_raw)
-    if min_len < 2:
-        st.session_state.friedman_returned_metabolites = 0
-        return pd.DataFrame()
-    group_data = [gdf.iloc[:min_len] for gdf in group_data_raw]
-
-    _fr_rows = list(gen_friedman_data(group_data, _progress_callback=_progress_callback))
+    _fr_rows = list(gen_friedman_data(combined, metabolite_cols, attribute, subject_col, groups,
+                                      _progress_callback=_progress_callback))
     if _fr_rows:
-        _met, _p, _stat = zip(*_fr_rows)
-        df = pd.DataFrame({"metabolite": list(_met), "p": list(_p), "statistic": list(_stat)})
+        _met, _p, _stat, _n = zip(*_fr_rows)
+        df = pd.DataFrame({"metabolite": list(_met), "p": list(_p), "statistic": list(_stat), "n subjects": list(_n)})
     else:
-        df = pd.DataFrame(columns=["metabolite", "p", "statistic"])
+        df = pd.DataFrame(columns=["metabolite", "p", "statistic", "n subjects"])
     if df.empty:
         st.session_state.friedman_returned_metabolites = 0
         return df
@@ -137,7 +133,7 @@ def get_friedman_plot(friedman_df, color_by=None):
 
     def safe_log10_series(s):
         s = pd.to_numeric(s, errors="coerce")
-        return s.where(s > 0, np.nan).apply(np.log10)
+        return s.where(s > 0, np.nan).apply(np.log)
 
     def safe_neglog10p(pseries):
         p = pd.to_numeric(pseries, errors="coerce").fillna(1.0)
@@ -146,7 +142,7 @@ def get_friedman_plot(friedman_df, color_by=None):
 
     fig.add_trace(go.Scatter(
         x=safe_log10_series(insig["statistic"]),
-        y=safe_neglog10p(insig["p"]),
+        y=safe_neglog10p(insig["p-corrected"]),
         mode="markers",
         marker=dict(color="#696880"),
         name="insignificant",
@@ -168,7 +164,7 @@ def get_friedman_plot(friedman_df, color_by=None):
             if not group_sig.empty:
                 fig.add_trace(go.Scatter(
                     x=safe_log10_series(group_sig["statistic"]),
-                    y=safe_neglog10p(group_sig["p"]),
+                    y=safe_neglog10p(group_sig["p-corrected"]),
                     mode="markers",
                     marker=dict(color=colors[gi % len(colors)]),
                     name=f"{group}",
@@ -179,7 +175,7 @@ def get_friedman_plot(friedman_df, color_by=None):
     else:
         fig.add_trace(go.Scatter(
             x=safe_log10_series(sig["statistic"]),
-            y=safe_neglog10p(sig["p"]),
+            y=safe_neglog10p(sig["p-corrected"]),
             mode="markers",
             marker=dict(color="#ef553b"),
             name="significant",
@@ -194,8 +190,8 @@ def get_friedman_plot(friedman_df, color_by=None):
             "text": f"Friedman - {st.session_state.friedman_attribute.upper()}",
             "font_color": "#3E3D53",
         },
-        xaxis_title="log10(Chi²)",
-        yaxis_title="-log10(p)",
+        xaxis_title="ln(Chi²)",
+        yaxis_title="-log10(p-corrected)",
         legend=dict(title="Legend"),
         width=600,
         height=600,
@@ -212,9 +208,8 @@ def get_friedman_metabolite_boxplot(friedman_df, metabolite):
     if "friedman_groups" in st.session_state:
         df = df[df[attribute].isin(st.session_state.friedman_groups)]
 
-    df = df.reset_index().rename(columns={"index": "filename"})
-    if df.columns[0] == "filename" and st.session_state.data.index.name:
-        df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
+    # sample names -> "filename" column, regardless of whether the index is named
+    df = df.rename_axis("filename").reset_index()
 
     feature_map = get_feature_name_map()
     metabolite_name = feature_map.get(metabolite, metabolite) if feature_map else metabolite

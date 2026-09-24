@@ -12,12 +12,14 @@ You can run the Statistics for Metabolomics app in two ways:
 
 1. **From source code**
    - Download or clone this repository.
+   - Requires **Python 3.11 or newer**.
    - Open a terminal in the project folder and run:
      ```bash
      pip install -r requirements.txt
      streamlit run Statistics_for_Metabolomics.py
      ```
    - The app will open automatically in your browser.
+   - Optional: to enable the AI assistant, copy `.env.example` to `.env` and add an API key.
 
 2. **Using the Windows executable (.msi)**
    - Download the latest `.msi` version from the releases page.
@@ -26,18 +28,26 @@ You can run the Statistics for Metabolomics app in two ways:
    - Once downloading, if the pop-up terminal seems blank or isn't loading, restart the app. 
 
 ## Available Statistics
-- Principal Component Analysis (PCA)
 - Multivariate
+    - Principal Component Analysis (PCA)
     - PERMANOVA & PCoA
-- Hierachical Clustering & Heatmaps
-- Univariate 
+    - Hierarchical Clustering & Heatmaps
+    - Random Forest (supervised)
+- Univariate
+    - Parametric assumptions evaluation (normality & equal variance)
     - One-way ANOVA & Tukey's post hoc test
+    - Repeated Measures ANOVA
+    - T-test (Student's, Welch's, paired)
     - Kruskal-Wallis & Dunn's post hoc test
-- Student's t-test
+    - Mann-Whitney U test
+    - Wilcoxon signed-rank test (paired)
+    - Friedman test (paired)
+
+Paired tests (paired t-test, Wilcoxon, Friedman, Repeated Measures ANOVA) need a metadata column that identifies the subject/pair (e.g., patient ID).
 
 ## Quickstart
 
-Once you have completed the **Data Preparation** step, chose any of the available statistics sections.
+Once you have completed the **Data Preparation** step, choose any of the available statistics sections.
 
 ### Data Preparation
 - two tables are required: **Quantification** and **Meta Data**
@@ -48,7 +58,7 @@ Once you have completed the **Data Preparation** step, chose any of the availabl
 - quantification table needs sample file names as column names
 - meta data table **requires** a `filename` column
 - meta data table can contain columns with attributes
-- checkout the **example data** availabe in file selection
+- check out the **example data** available in file selection
 - remove blank features and impute missing values in the **Data Cleanup** section
 
 Example feature table:

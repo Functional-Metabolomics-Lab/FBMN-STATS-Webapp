@@ -27,17 +27,22 @@ def gen_rm_anova_data(df_long, metabolites, subject_col, within_col, _progress_c
         if subset.empty:
             continue
         try:
-            result = pg.rm_anova(data=subset, dv="value", within=within_col, subject=subject_col)
+            result = pg.rm_anova(data=subset, dv="value", within=within_col, subject=subject_col, correction=True)
         except Exception:
             continue
 
-        # Extract p and F from the result
+        # Extract p and F from the result (pingouin >= 0.6 uses snake_case column names).
+        # Use the Greenhouse-Geisser corrected p-value when Mauchly's test rejects sphericity.
         p = None
         f = None
-        if "p-unc" in result.columns:
-            p = float(result.iloc[0]["p-unc"])
-        elif "p" in result.columns:
-            p = float(result.iloc[0]["p"])
+        row = result.iloc[0]
+        p_unc_col = next((c for c in ["p_unc", "p-unc", "p"] if c in result.columns), None)
+        p_gg_col = next((c for c in ["p_GG_corr", "p-GG-corr"] if c in result.columns), None)
+        sphericity = row["sphericity"] if "sphericity" in result.columns else True
+        if p_gg_col is not None and sphericity is not None and not bool(sphericity):
+            p = float(row[p_gg_col])
+        elif p_unc_col is not None:
+            p = float(row[p_unc_col])
         if "F" in result.columns:
             f = float(result.iloc[0]["F"])
 
@@ -126,7 +131,7 @@ def rm_anova_test(attribute, correction, elements, subject_col, _progress_callba
 
 @st.cache_resource(show_spinner="Creating Repeated Measures ANOVA plot...")
 def get_rm_anova_plot(rm_anova_df, color_by=None):
-    """Scatter: x=log(F), y=-log(p)."""
+    """Scatter: x=ln(F), y=-log10(p-corrected)."""
     feature_map = get_feature_name_map()
     eps = 1e-12
 
@@ -146,7 +151,7 @@ def get_rm_anova_plot(rm_anova_df, color_by=None):
     if not ins.empty:
         fig.add_trace(go.Scatter(
             x=np.log(ins["F"].astype(float).clip(lower=eps)),
-            y=-np.log(ins["p"].astype(float).clip(lower=eps)),
+            y=-np.log10(ins["p-corrected"].astype(float).clip(lower=eps)),
             mode="markers",
             marker=dict(color="#696880"),
             name="insignificant",
@@ -170,7 +175,7 @@ def get_rm_anova_plot(rm_anova_df, color_by=None):
                 if not group_sig.empty:
                     fig.add_trace(go.Scatter(
                         x=np.log(group_sig["F"].astype(float).clip(lower=eps)),
-                        y=-np.log(group_sig["p"].astype(float).clip(lower=eps)),
+                        y=-np.log10(group_sig["p-corrected"].astype(float).clip(lower=eps)),
                         mode="markers",
                         marker=dict(color=colors[gi % len(colors)]),
                         name=f"{group}",
@@ -180,7 +185,7 @@ def get_rm_anova_plot(rm_anova_df, color_by=None):
         else:
             fig.add_trace(go.Scatter(
                 x=np.log(sig["F"].astype(float).clip(lower=eps)),
-                y=-np.log(sig["p"].astype(float).clip(lower=eps)),
+                y=-np.log10(sig["p-corrected"].astype(float).clip(lower=eps)),
                 mode="markers",
                 marker=dict(color="#ef553b"),
                 name="significant",
@@ -194,8 +199,8 @@ def get_rm_anova_plot(rm_anova_df, color_by=None):
             "text": f"Repeated Measures ANOVA - {st.session_state.rm_anova_attribute.upper()}",
             "font_color": "#3E3D53",
         },
-        xaxis_title="log(F)",
-        yaxis_title="-log(p)",
+        xaxis_title="ln(F)",
+        yaxis_title="-log10(p-corrected)",
         showlegend=True,
         legend=dict(itemsizing='trace', font=dict(size=12), orientation="v"),
         template="plotly_white",
@@ -216,9 +221,8 @@ def get_rm_anova_metabolite_boxplot(rm_anova_df, metabolite):
     if "rm_anova_groups" in st.session_state and st.session_state.rm_anova_groups:
         df = df[df[attribute].isin(st.session_state.rm_anova_groups)]
 
-    df = df.reset_index().rename(columns={"index": "filename"})
-    if df.columns[0] == "filename" and st.session_state.data.index.name:
-        df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
+    # sample names -> "filename" column, regardless of whether the index is named
+    df = df.rename_axis("filename").reset_index()
 
     feature_map = get_feature_name_map()
     metabolite_name = feature_map.get(metabolite, metabolite) if feature_map else metabolite

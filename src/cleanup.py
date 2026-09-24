@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from sklearn.preprocessing import StandardScaler
-# currently conflicting dependencies (requires old pandas 1.2.4)
-# from pynmranalysis.normalization import PQN_normalization
+
+# Functions returning a full feature table keep only a few results: every blank cutoff or
+# normalization choice would otherwise add another copy, which exhausts memory on large datasets.
+MAX_CACHED_TABLES = 4
 
 @st.cache_data
 def clean_up_md(md):
@@ -25,7 +26,7 @@ def clean_up_md(md):
     return md
 
 
-@st.cache_data
+@st.cache_data(max_entries=MAX_CACHED_TABLES)
 def clean_up_ft(ft):
     ft = (
         ft.copy()
@@ -38,10 +39,12 @@ def clean_up_ft(ft):
         columns={col: col.replace(" Peak area", "").replace(".mzXML", "").replace(".mzML", "").strip() for col in ft.columns},
         inplace=True,
     )
+    # empty cells in sample columns mean "not detected"; treat them like zeros (missing values)
+    ft = ft.fillna(0)
     return ft
 
 
-@st.cache_data
+@st.cache_data(max_entries=MAX_CACHED_TABLES)
 def check_columns(md, ft):
     if sorted(ft.columns) != sorted(md.index):
         st.warning("Not all files are present in both meta data & feature table.")
@@ -86,7 +89,7 @@ def get_cutoff_LOD(df):
     return round(min_val)
 
 
-@st.cache_data
+@st.cache_data(max_entries=MAX_CACHED_TABLES)
 def remove_blank_features(blanks, samples, cutoff):
     # Getting mean for every feature in blank and Samples
     avg_blank = blanks.mean(
@@ -97,8 +100,9 @@ def remove_blank_features(blanks, samples, cutoff):
     # Getting the ratio of blank vs samples
     ratio_blank_samples = (avg_blank + 1) / (avg_samples + 1)
 
-    # Create an array with boolean values: True (is a real feature, ratio<cutoff) / False (is a blank, background, noise feature, ratio>cutoff)
-    is_real_feature = ratio_blank_samples < cutoff
+    # Create an array with boolean values: True (is a real feature, ratio<=cutoff) / False (is a blank, background, noise feature, ratio>cutoff)
+    # (as in the FBMN-STATS protocol, Step 23: features with ratio > cutoff are flagged as noise and removed)
+    is_real_feature = ratio_blank_samples <= cutoff
 
     # Calculating the number of background features and features present (sum(bg_bin) equals number of features to be removed)
     n_background = len(samples) - sum(is_real_feature)
@@ -109,13 +113,16 @@ def remove_blank_features(blanks, samples, cutoff):
     return blank_removal, n_background, n_real_features
 
 
-@st.cache_data
-def impute_missing_values(df, cutoff_LOD):
-    # impute missing values (0) with a random value between one and lowest intensity (cutoff_LOD)
+@st.cache_data(max_entries=MAX_CACHED_TABLES)
+def impute_missing_values(df, cutoff_LOD, seed=141222):
+    # impute missing values (0) with a random value between one and the lowest intensity (cutoff_LOD),
+    # as in the FBMN-STATS protocol (Box 5): round(runif(n, min = 1, max = Cutoff_LOD), 1) with set.seed(141222)
     if cutoff_LOD > 1:
-        return df.apply(
-            lambda x: [np.random.randint(1, cutoff_LOD) if v == 0 else v for v in x]
-        )
+        rng = np.random.default_rng(seed)
+        values = df.to_numpy(dtype=float, copy=True)
+        mask = values == 0
+        values[mask] = np.round(rng.uniform(1, cutoff_LOD, size=int(mask.sum())), 1)
+        return pd.DataFrame(values, index=df.index, columns=df.columns)
     return df
 
 
@@ -162,7 +169,9 @@ def get_feature_frequency_fig(df):
 @st.cache_resource
 def get_missing_values_per_feature_fig(df, cutoff_LOD):
     # check the number of missing values per feature in a histogram
-    n_zeros = df.T.apply(lambda x: sum(x <= cutoff_LOD))
+    # values below the limit of detection (zeros, or imputed values which are < LOD) count as missing
+    below_lod = (df < cutoff_LOD) if cutoff_LOD else (df == 0)
+    n_zeros = (below_lod | df.isna()).sum(axis=1)
 
     fig = px.histogram(n_zeros, template="plotly_white", width=600, height=400)
 
@@ -178,7 +187,7 @@ def get_missing_values_per_feature_fig(df, cutoff_LOD):
     return fig
 
 
-@st.cache_data
+@st.cache_data(max_entries=MAX_CACHED_TABLES)
 def normalization(feature_df, meta_data_df, normalization_method):
     feature_df = feature_df.T
 
@@ -201,14 +210,11 @@ def normalization(feature_df, meta_data_df, normalization_method):
         )
 
     if normalization_method == "Center-Scaling":
-        normalized = pd.DataFrame(
-            StandardScaler().fit_transform(feature_df),
-            index=feature_df.index,
-            columns=feature_df.columns,
-        )
-
-    # elif normalization_method == "Probabilistic Quotient Normalization (PQN)":
-    #     normalized = PQN_normalization(feature_df ,ref_norm = "median" , verbose=False)
+        # Autoscaling per feature, identical to R's scale(center = TRUE, scale = TRUE) used in the
+        # protocol (Step 29): subtract the column mean and divide by the sample standard deviation (n - 1).
+        # Constant features (sd = 0) are set to 0 instead of NaN.
+        sd = feature_df.std(axis=0, ddof=1).replace(0, np.nan)
+        normalized = ((feature_df - feature_df.mean(axis=0)) / sd).fillna(0)
 
     elif normalization_method == "Total Ion Current (TIC) or sample-centric normalization":
         normalized = feature_df.apply(lambda x: x/np.sum(x), axis=1)

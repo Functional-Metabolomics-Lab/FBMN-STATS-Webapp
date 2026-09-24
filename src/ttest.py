@@ -7,8 +7,16 @@ import scipy.stats as stats
 import numpy as np
 import time
 
-def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correction, p_correction, _progress_callback=None):
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)
+def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correction, p_correction, subject_col=None, _progress_callback=None):
+    """Run a t-test per metabolite between the two target groups.
+
+    For a paired test, samples are matched by the metadata column `subject_col`; subjects
+    that are not measured in both groups are dropped.
+    """
+    from src.utils import paired_wide
+
+    md_cols = [ttest_attribute] + ([subject_col] if paired and subject_col else [])
+    df = pd.concat([st.session_state.data, st.session_state.md[md_cols]], axis=1)
     ttest = []
     columns = []
     for col in st.session_state.data.columns:
@@ -23,14 +31,20 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
         if idx == 0:
             start_time = time.time()
         
-        group1 = df[col][df[ttest_attribute] == target_groups[0]]
-        group2 = df[col][df[ttest_attribute] == target_groups[1]]
-        
+        if paired:
+            # Align the two groups by subject so that row i of both groups is the same subject
+            wide = paired_wide(df, col, ttest_attribute, subject_col, target_groups)
+            group1 = wide[target_groups[0]].astype(float)
+            group2 = wide[target_groups[1]].astype(float)
+            if len(wide) < 2:
+                continue
+        else:
+            group1 = df[col][df[ttest_attribute] == target_groups[0]].dropna()
+            group2 = df[col][df[ttest_attribute] == target_groups[1]].dropna()
+
         # Calculate means for volcano plot
         mean1 = group1.mean()
         mean2 = group2.mean()
-        n1 = len(group1)
-        n2 = len(group2)
 
         # Determine which t-test to use
         # The 'correction' variable is "auto", "True", or "False" (strings)
@@ -42,14 +56,17 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
         elif correction == "auto":
             correction_param = True        # Default to Welch
 
-        # Calculate t-test
-        result = pg.ttest(group1, group2, paired, alternative, correction=correction_param)
+        # Calculate t-test (the Welch correction does not apply to paired tests)
+        try:
+            result = pg.ttest(group1, group2, paired=paired, alternative=alternative, correction=correction_param)
+        except Exception:
+            continue
 
         # Label which test type was used
-        if correction_param == True:
+        if paired:
+            result["ttest_type"] = "Paired"
+        elif correction_param == True:
             result["ttest_type"] = "Welch"
-        elif paired:
-            result["ttest_type"] = "Paired Student"
         else:
             result["ttest_type"] = "Student"
         
@@ -103,7 +120,8 @@ def _clean_ttest_dataframe(df):
             df[col] = df[col].astype(bool)
     
     # Ensure string columns are proper string types
-    str_cols = ["ttest_type", "attribute", "A", "B"]
+    # (CI95 holds numpy arrays, which Streamlit's cache and Arrow cannot hash/serialize)
+    str_cols = ["ttest_type", "attribute", "A", "B", "CI95"]
     for col in str_cols:
         if col in df.columns:
             df[col] = df[col].astype(str)
@@ -127,7 +145,7 @@ def plot_ttest(df, color_by=None):
 
     # Add a column for -log(p-corrected) and significance label
     df = df.copy()
-    df["-log_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log(x + 1e-300)) # Add epsilon
+    df["-log10_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log10(x + 1e-300)) # Add epsilon
     if color_by is not None:
         from src.utils import compute_dominant_groups
         sig_mets = list(df[df["significance"]].index)
@@ -158,7 +176,7 @@ def plot_ttest(df, color_by=None):
     fig = px.scatter(
         df,
         x=t_col,
-        y="-log_p_corrected",
+        y="-log10_p_corrected",
         color="sig_label",
         color_discrete_map=_color_map,
         custom_data=["metabolite_name"],
@@ -185,8 +203,8 @@ def plot_ttest(df, color_by=None):
             "text": title_text,
             "font_color": "#3E3D53",
         },
-        xaxis_title="T-statistic",
-        yaxis_title="-Log(p-corrected)",
+        xaxis_title="T-statistic (positive = A > B)",
+        yaxis_title="-log10(p-corrected)",
         showlegend=True,  # Enable legend
         legend_title_text="Significance",
     )
@@ -206,19 +224,18 @@ def _get_ttest_feature_map():
 
 @st.cache_resource(show_spinner="Creating volcano plot...")
 def get_ttest_volcano_plot(df):
-    """Volcano plot for t-test: x = log2 fold change (mean(B)/mean(A)), y = -log10(p-corrected).
-    Adds metabolite/feature hover labels.
+    """Volcano plot for t-test as in the protocol (Step 70): x = estimate (difference in group means,
+    mean(A) - mean(B)), y = -log10(p-corrected). Unlike a fold change, the mean difference is also
+    meaningful for centred/scaled data. Adds metabolite/feature hover labels.
     """
     feature_map = _get_ttest_feature_map()
     df = df.copy()
-    eps = 1e-9
-    
-    # Ensure means are numeric, handle potential NaNs
-    meanA = pd.to_numeric(df["mean(A)"], errors='coerce').fillna(0) + eps
-    meanB = pd.to_numeric(df["mean(B)"], errors='coerce').fillna(0) + eps
-    p_values = pd.to_numeric(df["p-corrected"], errors='coerce').fillna(1.0) + eps
 
-    df["log2FC"] = np.log2(meanB / meanA)
+    meanA = pd.to_numeric(df["mean(A)"], errors='coerce')
+    meanB = pd.to_numeric(df["mean(B)"], errors='coerce')
+    p_values = pd.to_numeric(df["p-corrected"], errors='coerce').fillna(1.0).clip(lower=1e-300)
+
+    df["mean_diff"] = meanA - meanB
     df["neglog10p"] = -np.log10(p_values)
 
     fig = go.Figure()
@@ -234,7 +251,7 @@ def get_ttest_volcano_plot(df):
     if not ins.empty:
         fig.add_trace(
             go.Scatter(
-                x=ins["log2FC"],
+                x=ins["mean_diff"],
                 y=ins["neglog10p"],
                 mode="markers",
                 marker=dict(color="#696880"),
@@ -246,12 +263,12 @@ def get_ttest_volcano_plot(df):
 
     sig = df[df["significance"] == True]
     if not sig.empty:
-        # Group A blue (log2FC < 0)
-        sig_A = sig[sig["log2FC"] < 0]
+        # Group A higher (mean difference > 0) in blue
+        sig_A = sig[sig["mean_diff"] > 0]
         if not sig_A.empty:
             fig.add_trace(
                 go.Scatter(
-                    x=sig_A["log2FC"],
+                    x=sig_A["mean_diff"],
                     y=sig_A["neglog10p"],
                     mode="markers",
                     marker=dict(color="#1f77b4"), 
@@ -260,12 +277,12 @@ def get_ttest_volcano_plot(df):
                     hoverinfo="text",
                 )
             )
-        # Group B red (log2FC > 0)
-        sig_B = sig[sig["log2FC"] > 0]
+        # Group B higher (mean difference < 0) in red
+        sig_B = sig[sig["mean_diff"] < 0]
         if not sig_B.empty:
             fig.add_trace(
                 go.Scatter(
-                    x=sig_B["log2FC"],
+                    x=sig_B["mean_diff"],
                     y=sig_B["neglog10p"],
                     mode="markers",
                     marker=dict(color="#ef553b"),
@@ -281,7 +298,7 @@ def get_ttest_volcano_plot(df):
             "text": f"t-test - VOLCANO PLOT - {st.session_state.ttest_attribute.upper()}: {st.session_state.ttest_options[0]} - {st.session_state.ttest_options[1]}",
             "font_color": "#3E3D53",
         },
-        xaxis_title="log2(mean B / mean A)",
+        xaxis_title=f"difference of group means (mean {st.session_state.ttest_options[0]} - mean {st.session_state.ttest_options[1]})",
         yaxis_title="-log10(p-corrected)",
         template="plotly_white",
         legend=dict(
@@ -305,9 +322,8 @@ def ttest_boxplot(df_ttest, metabolite):
     options = st.session_state.ttest_options
     df = df[df[attribute].isin(options)].copy()
     df[attribute] = pd.Categorical(df[attribute], categories=options, ordered=True)
-    df = df.reset_index().rename(columns={"index": "filename"})
-    if df.columns[0] == "filename" and st.session_state.data.index.name:
-        df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
+    # sample names -> "filename" column, regardless of whether the index is named
+    df = df.rename_axis("filename").reset_index()
 
     feature_map = _get_ttest_feature_map()
     metabolite_name = feature_map.get(metabolite, metabolite) if feature_map else metabolite

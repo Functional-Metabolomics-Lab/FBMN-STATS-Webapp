@@ -102,7 +102,7 @@ st.markdown("""
 
 st.subheader('Settings Panel')
 st.markdown("""
-1. **P-value Correction:** These are FDR (False Disovery Rate) corrections applied for multiple univariate tests. Available options include Bonferroni, Sidak, Benjamini-Hochberg (BH), Benjamini-Yekutieli (BY), and an option for no correction.  
+1. **P-value Correction:** These are multiple-testing corrections applied to univariate tests. Available options include Bonferroni and Sidak (which control the family-wise error rate), Benjamini-Hochberg (BH) and Benjamini-Yekutieli (BY) (which control the False Discovery Rate, FDR), and an option for no correction.
             While Bonferroni is known for controlling false positives, it may inadvertently increase false negatives. Advanced methods like BH and BY aim to balance true discoveries against false positives more effectively. We recommend BH for FDR correction to optimize analysis outcomes.
             
     Note that changing the p-value correction settings does not automatically update the corrected p-values. To update results re-run the analysis.
@@ -113,7 +113,7 @@ st.markdown("""
 
 st.subheader('Limitations of the App')
 st.markdown("""
-- Be mindful of the 200 MB data limit. There is a possibility of server slowdowns or crashes with larger datasets. The GUI's simplicity and limited graphical options are designed for introductory purposes and does not allow customization for deeper analysis. 
+- Be mindful of the 512 MB upload limit. There is a possibility of server slowdowns or crashes with larger datasets. The GUI's simplicity and limited graphical options are designed for introductory purposes and does not allow customization for deeper analysis. 
 """)
 
 

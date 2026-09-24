@@ -2,29 +2,31 @@
 **Page Summary: Wilcoxon Signed-Rank Test**
 
 **Functionality:**
-This page conducts the Wilcoxon signed-rank test, the non-parametric equivalent of the paired t-test, for comparing two paired or matched sample groups. It is designed for metabolomics data where normality cannot be assumed. FDR correction is applied to handle the multiple testing problem arising from testing all metabolites simultaneously.
+This page conducts the Wilcoxon signed-rank test, the non-parametric equivalent of the paired t-test, for comparing two paired or matched sample groups. It is designed for metabolomics data where normality cannot be assumed. The globally selected multiple-testing correction is applied across all tested metabolites.
 
 **When to use:**
-Use this test when samples are paired or matched (e.g., before vs. after treatment, same subject measured twice, matched case-control designs) and normality cannot be assumed. Both groups must have the same number of samples because observations are compared pair-wise.
+Use this test when samples are paired or matched (e.g., before vs. after treatment, same subject measured twice, matched case-control designs) and normality cannot be assumed. The metadata must contain a subject/pairing column (e.g., patient ID) that has the same value for the two matched samples.
 
 **Parameters:**
 - **Attribute:** A categorical column from the metadata selected by the user to define the sample groups (e.g., Treatment, Timepoint).
-- **Comparison Options:** Two specific groups selected from the chosen attribute. Both groups must have the same number of samples (paired design).
+- **Comparison Options:** Two specific groups selected from the chosen attribute.
+- **Subject / pairing column:** Metadata column used to match samples between the two groups. Subjects not measured in both groups are excluded; if a subject has more than one sample in a group, the page asks for a different column.
 - **Alternative Hypothesis:**
     - *Two-sided:* Tests for difference in any direction.
     - *Greater/Less:* Directional tests (Group A > Group B or A < B).
-- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR).
+- **P-value Correction:** The globally selected method for multiple comparison adjustment (e.g., Benjamini-Hochberg FDR, Bonferroni, or none).
 
 **Results:**
-- **Results Table:** A dataframe containing the W-statistic, raw p-value, corrected p-value (FDR), rank-biserial correlation (RBC), common language effect size (CLES), group medians, and statistical significance indicators.
-- **Feature Significance Plot:** A scatter plot of the W-statistic vs. -Log(corrected p-value), highlighting significant metabolites in red and insignificant ones in grey.
+- **Results Table:** A dataframe containing the W-statistic, raw p-value, corrected p-value, rank-biserial correlation (RBC), common language effect size (CLES), group medians, number of pairs, and statistical significance indicators.
+- **Feature Significance Plot:** A scatter plot of the W-statistic vs. -log10(corrected p-value), highlighting significant metabolites in red and insignificant ones in grey.
 - **Single Metabolite Boxplots:** Visualization of intensity distributions for individual user-selected metabolites across the two paired groups, with the corrected p-value shown in the title.
 
 **Key output column definitions:**
-- W-val: Wilcoxon W statistic (sum of positive signed ranks).
-- p-val: Raw p-value from the test.
-- RBC: Rank-biserial correlation (effect size, −1 to +1; |0.1| small, |0.3| medium, |0.5| large).
+- W_val: Wilcoxon W statistic (for a two-sided test, the smaller of the positive and negative signed-rank sums).
+- p_val: Raw p-value from the test.
+- RBC: Matched-pairs rank-biserial correlation (effect size, −1 to +1; |0.1| small, |0.3| medium, |0.5| large).
 - CLES: Common language effect size (probability that a random observation from A exceeds one from B).
-- p-corrected: FDR-adjusted p-value accounting for multiple comparisons across all metabolites.
+- n pairs: Number of complete subject pairs used.
+- p-corrected: p-value adjusted for multiple comparisons across all metabolites using the selected method.
 - significance: Boolean flag whether p-corrected < 0.05.
 [/PAGE_CONTEXT]

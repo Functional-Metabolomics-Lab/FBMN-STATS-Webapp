@@ -38,29 +38,14 @@ def get_clustermap(data, color, vmin=None, vmax=None, dendro_height=0.2, heatmap
     data_reordered = data.loc[dendro_leaves]
     # Create heatmap
 
-    # Compute linkage matrix from distances for hierarchical clustering
-    linkage_data_ft = linkage(data, method="complete", metric="euclidean")
-    linkage_data_samples = linkage(data.T, method="complete", metric="euclidean")
+    # Hierarchical clustering of the features (rows of the heatmap); the sample order
+    # (heatmap columns) is taken from the dendrogram above.
+    linkage_features = linkage(data.T, method="complete", metric="euclidean")
+    cluster_ft = dendrogram(linkage_features, no_plot=True)
 
-    # Create a dictionary of data structures computed to render the dendrogram.
-    # We will use dict['leaves']
-    cluster_samples = dendrogram(linkage_data_ft, no_plot=True)
-    cluster_ft = dendrogram(linkage_data_samples, no_plot=True)
-
-    # Create dataframe with sorted samples
-    ord_samp = data.copy()
-    ord_samp.reset_index(inplace=True)
-    ord_samp = ord_samp.reindex(cluster_samples["leaves"])
-    ord_samp.rename(columns={"index": "Filename"}, inplace=True)
-    ord_samp.set_index("Filename", inplace=True)
-
-    # Create dataframe with sorted features
-    ord_ft = ord_samp.T.reset_index()
-    ord_ft = ord_ft.reindex(cluster_ft["leaves"])
-    # Set index to original metabolite names if available
-    if "metabolite" in ord_ft.columns:
-        ord_ft.set_index("metabolite", inplace=True)
-    # Otherwise, keep the current index
+    # features x samples, features reordered by their clustering
+    ord_ft = data.T.iloc[cluster_ft["leaves"]]
+    ord_ft.columns.name = "Filename"
 
     if vmin is None:
         vmin = np.nanpercentile(data_reordered.values, 5)
@@ -74,30 +59,39 @@ def get_clustermap(data, color, vmin=None, vmax=None, dendro_height=0.2, heatmap
         vertical_spacing=0
     )
 
-    values = ord_ft.index.tolist()
+    # Align heatmap columns with the dendrogram leaves: the dendrogram draws its leaves at
+    # numeric x positions (tickvals) in the order given by ticktext, so place the heatmap
+    # columns at exactly those positions.
+    leaf_labels = list(dendro['layout']['xaxis']['ticktext'])
+    leaf_positions = list(dendro['layout']['xaxis']['tickvals'])
+    ord_ft = ord_ft[leaf_labels]
+
     # Add dendrogram traces
     for trace in dendro['data']:
         fig.add_trace(trace, row=1, col=1)
     # Add heatmap trace(s)
     # Prepare row labels (split) and full names for hover
-    row_labels = [y.split("&")[0] for y in ord_ft.index]
-    full_names = list(ord_ft.index)
+    row_labels = [str(y).split("&")[0] for y in ord_ft.index]
+    full_names = [str(y) for y in ord_ft.index]
+    hover = np.array([[f"Filename: {s}<br>Metabolite&Name: {m}" for s in leaf_labels] for m in full_names])
     fig.add_trace(
         go.Heatmap(
             z=ord_ft.values,
-            x=list(ord_ft.columns),
+            x=leaf_positions,
             y=row_labels,
             colorscale=color,
             zmin=vmin,
             zmax=vmax,
-            colorbar=dict(title=""),
+            colorbar=dict(title="", len=heatmap_height, y=0, yanchor="bottom"),
             name="",  # Hide trace name in hover
-            customdata=np.array(full_names)[:, None].repeat(ord_ft.shape[1], axis=1),
-            hovertemplate="Filename: %{x}<br>Metabolite&Name: %{customdata}<br>Abundance: %{z}<extra></extra>",
+            customdata=hover,
+            hovertemplate="%{customdata}<br>Abundance: %{z}<extra></extra>",
             # showscale=True
         ),
         row=2, col=1,
     )
+    fig.update_xaxes(tickmode="array", tickvals=leaf_positions, ticktext=leaf_labels, row=2, col=1)
+    fig.update_xaxes(showticklabels=False, row=1, col=1)
 
     # st.plotly_chart(fig, use_container_width=True)
         

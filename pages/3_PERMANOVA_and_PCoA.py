@@ -191,7 +191,13 @@ try:
                 "Distance matrix",
                 ["braycurtis", "canberra", "chebyshev", "cityblock", "correlation", "cosine", "euclidean", "hamming", "jaccard", "matching", "minkowski", "seuclidean", "sqeuclidean"],
                 key="pcoa_distance_matrix",
-                index = 6
+                index = 6,
+                help=(
+                    "Euclidean is a good default. Bray-Curtis is meant for non-negative abundances "
+                    "(avoid it after Center-Scaling, which creates negative values). Jaccard, Hamming and "
+                    "Matching treat values as presence/absence or exact matches and are rarely meaningful "
+                    "for continuous intensities. Minkowski uses p=2 (identical to Euclidean)."
+                ),
             )
         with col_color:
             pcoa_color_by = st.selectbox(
@@ -219,18 +225,26 @@ try:
                 elif min_per_cat < 2:
                     st.warning(f"⚠️ PERMANOVA requires at least 2 samples per category in '{pcoa_color_by}' among the filtered samples — showing PCoA only.")
 
-            if can_permanova:
-                permanova, pcoa_result = permanova_pcoa(
-                    perm_data,
-                    st.session_state.pcoa_distance_matrix,
-                    perm_md[pcoa_color_by],
+            try:
+                if can_permanova:
+                    permanova, pcoa_result = permanova_pcoa(
+                        perm_data,
+                        st.session_state.pcoa_distance_matrix,
+                        perm_md[pcoa_color_by],
+                    )
+                else:
+                    permanova = None
+                    pcoa_result = compute_pcoa_only(
+                        filtered_data,
+                        st.session_state.pcoa_distance_matrix,
+                    )
+            except Exception as e:
+                st.error(
+                    f"Could not compute the '{st.session_state.pcoa_distance_matrix}' distance matrix for this data "
+                    f"(e.g., constant or all-zero samples/features produce undefined distances). "
+                    f"Please choose a different distance metric. Details: {e}"
                 )
-            else:
-                permanova = None
-                pcoa_result = compute_pcoa_only(
-                    filtered_data,
-                    st.session_state.pcoa_distance_matrix,
-                )
+                st.stop()
 
             # Dynamically determine available PCs from pcoa_result.samples columns
             available_pcs = [col for col in pcoa_result.samples.columns if col.startswith("PC")]
@@ -266,6 +280,18 @@ try:
                             pcoa_tab, var_tab, data_tab = st.tabs(["📈 Principal Coordinate Analysis", "📊 Explained variance", "📁 Data"])
 
                         with pcoa_tab:
+                            # as in the protocol's plotPCoA(): show PERMDISP and PERMANOVA results on the plot
+                            subtitle = None
+                            if include_permanova:
+                                _stats = dict(zip(permanova["Metric"], permanova["Value"]))
+                                try:
+                                    subtitle = f"PERMANOVA (p = {float(_stats['p-value']):.3g}, R² = {float(_stats['R2']):.4f})"
+                                    if "PERMDISP p-value" in _stats:
+                                        subtitle = f"PERMDISP p = {float(_stats['PERMDISP p-value']):.3g}; " + subtitle
+                                except (KeyError, TypeError, ValueError):
+                                    subtitle = None
+                                if "PERMDISP p-value" in _stats and float(_stats["PERMDISP p-value"]) < 0.05:
+                                    st.warning("⚠️ PERMDISP is significant (p < 0.05): group dispersions differ, which violates a PERMANOVA assumption. Interpret the PERMANOVA result with caution.")
                             fig = get_pcoa_scatter_plot(
                                 pcoa_result,
                                 st.session_state.md.loc[pcoa_result.samples.index],
@@ -274,6 +300,7 @@ try:
                                 pcoa_y_axis,
                                 shape_map=shape_map,
                                 symbol_attribute=att_col,
+                                subtitle=subtitle,
                             )
                             show_fig(fig, "principal-coordinate-analysis")
                             st.session_state["page_figs_pcoa_scatter"] = fig
@@ -290,4 +317,4 @@ try:
         st.warning("⚠️ Please complete data preparation step first!")
 
 except ModuleNotFoundError:
-    st.error("This page requires the `skbio` package, which is not available in the Windows app.")
+    st.error("This page requires the `scikit-bio` (skbio) package, which is not installed. Install it with `pip install scikit-bio`.")

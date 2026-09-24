@@ -13,9 +13,10 @@ FBMN-STATS is a comprehensive web application designed to streamline the statist
     *   **Data Refinement:** Robust options for blank removal (ratio-based), missing value imputation (LOD-based), and normalization (Total Ion Current (TIC) or Center-Scaling).
 
 2.  **Univariate Statistical Analysis:**
-    *   **Parametric Tests:** One-way ANOVA with Tukey's HSD post-hoc test for multi-group comparisons, and Student's t-test for pairwise analysis.
-    *   **Non-Parametric Tests:** Kruskal-Wallis with Dunn's post-hoc test (multi-group) and Mann-Whitney U test (pairwise) for non-normally distributed data.
-    *   **Multiple Testing Correction:** Built-in False Discovery Rate (FDR) corrections including Bonferroni, Sidak, Benjamini-Hochberg (BH), and Benjamini-Yekutieli (BY).
+    *   **Assumption Checks:** Shapiro-Wilk (normality) and Levene/Bartlett (equal variance) histograms to guide the choice between parametric and non-parametric tests.
+    *   **Parametric Tests:** One-way ANOVA with Tukey's HSD post-hoc test and Repeated Measures ANOVA for multi-group comparisons; Student's, Welch's and paired t-tests for two groups.
+    *   **Non-Parametric Tests:** Kruskal-Wallis with Dunn's post-hoc test and the Friedman test (paired) for multi-group comparisons; Mann-Whitney U and Wilcoxon signed-rank (paired) tests for two groups.
+    *   **Multiple Testing Correction:** Bonferroni and Sidak (family-wise error rate) and Benjamini-Hochberg (BH) and Benjamini-Yekutieli (BY) (False Discovery Rate, FDR), or no correction.
 
 3.  **Multivariate Statistical Analysis:**
     *   **Unsupervised Learning:** Principal Component Analysis (PCA) and Principal Coordinate Analysis (PCoA) with PERMANOVA for global variance exploration.
@@ -24,7 +25,7 @@ FBMN-STATS is a comprehensive web application designed to streamline the statist
 
 4.  **Interactive Visualizations:**
     *   **Dynamic Plots:** All charts are powered by Plotly, allowing for zooming, panning, and hovering for detailed data inspection.
-    *   **Statistical Graphics:** Volcano-like significance plots (Log(F) vs -Log(p)), scree plots for variance, and metabolite-specific boxplots with overlayed sample points.
+    *   **Statistical Graphics:** Significance plots (e.g., ln(F) or test statistic vs -log10(p)), volcano plots, scree plots for variance, and metabolite-specific boxplots with overlayed sample points.
     *   **Publication-Ready Exports:** One-click download of interactive HTML files or high-resolution static images (PNG, SVG, etc.).
 
 5.  **Integrated LLM Assistance:**

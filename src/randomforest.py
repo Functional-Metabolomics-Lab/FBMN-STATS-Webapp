@@ -9,11 +9,11 @@ from sklearn.utils import class_weight
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix, accuracy_score
 
-def run_random_forest(attribute, n_trees, random_seed=None, _progress_callback=None):
+def run_random_forest(data, md, attribute, n_trees, random_seed=None, _progress_callback=None):
     # initialize a log to print out in the app later
     log = ""
 
-    labels = st.session_state.md[[attribute]]
+    labels = md[[attribute]]
 
     # Check for NaN in labels (y)
     if labels.isnull().values.any():
@@ -28,7 +28,7 @@ def run_random_forest(attribute, n_trees, random_seed=None, _progress_callback=N
     class_names = [str(c).strip() for c in enc.categories_[0]]
 
     # Extract the feature intensities as np 2D array
-    features = np.array(st.session_state.data)
+    features = np.array(data)
 
     # Determine the smallest class size and adjust test_size accordingly
     unique, counts = np.unique(labels, return_counts=True)
@@ -109,12 +109,28 @@ def run_random_forest(attribute, n_trees, random_seed=None, _progress_callback=N
 
     df_oob = pd.DataFrame({"n trees": tree_range, "error rate": errors})
 
+    # OOB evaluation on all samples, as in the protocol (rfPermute, Steps 53-55): every tree is
+    # validated on the samples it did not see, with class-balanced sampling, and no separate test split.
+    rf_all = RandomForestClassifier(n_estimators=n_trees, class_weight="balanced_subsample",
+                                    oob_score=True, random_state=random_seed)
+    rf_all.fit(features, labels)
+    oob_proba = rf_all.oob_decision_function_
+    has_oob = ~np.isnan(oob_proba).any(axis=1)
+    oob_pred = rf_all.classes_[np.argmax(np.nan_to_num(oob_proba, nan=-1.0), axis=1)]
+    oob_confusion = confusion_matrix(labels[has_oob], oob_pred[has_oob], labels=label_values)
+    oob_confusion_df = pd.DataFrame(oob_confusion, index=class_names, columns=class_names)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        pct_correct = np.diag(oob_confusion) / oob_confusion.sum(axis=1) * 100
+    oob_confusion_df["pct.correct"] = np.round(pct_correct, 1)
+    oob_accuracy = accuracy_score(labels[has_oob], oob_pred[has_oob])
+    log += f"OOB accuracy (all samples, class-balanced, {n_trees} trees): {oob_accuracy:.1%}\n"
+
     # Extract the important features in the model
     df_important_features = pd.DataFrame(rf.feature_importances_, 
-                                         index=st.session_state.data.columns).sort_values(by=0, ascending=False)
+                                         index=data.columns).sort_values(by=0, ascending=False)
     df_important_features.columns = ["importance"]
     
-    return df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy
+    return df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy, oob_confusion_df, oob_accuracy
 
 
 def get_oob_fig(df):
@@ -124,16 +140,20 @@ def get_oob_fig(df):
 def get_feature_importance_fig(df_important_features, n_features):
     """Return a horizontal bar chart of the top *n_features* by Gini importance."""
     top = df_important_features.head(n_features).iloc[::-1]  # reverse for horizontal bar
-    truncated_labels = [s[:30] + "…" if len(s) > 30 else s for s in top.index.astype(str)]
+    full_labels = list(top.index.astype(str))
+    truncated_labels = [s[:30] + "…" if len(s) > 30 else s for s in full_labels]
+    # Plot against the full (unique) labels so features sharing a 30-character
+    # prefix don't collapse into one bar; show the truncated text as tick labels.
     fig = px.bar(
         top,
         x="importance",
-        y=truncated_labels,
+        y=full_labels,
         orientation="h",
         template="plotly_white",
         title=f"Top {n_features} Features by Importance",
         labels={"importance": "Gini Importance", "y": "Feature"},
     )
+    fig.update_yaxes(tickmode="array", tickvals=full_labels, ticktext=truncated_labels)
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
         title={"font_color": "#3E3D53"},

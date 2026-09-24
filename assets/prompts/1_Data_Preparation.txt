@@ -14,7 +14,7 @@ This is the foundational step of the workflow. This page handles the import, cle
 - **Imputation (Cleanup):**
     - *Toggle:* Replaces missing values (zeros) with estimated low-abundance values (between 1 and the estimated Limit of Detection) to facilitate statistical tests that require non-zero data.
 - **Normalization Method:**
-    - *None:* Uses row intensities.
+    - *None:* Uses raw intensities.
     - *Center-Scaling:* Standardizes features to have zero mean and unit variance.
     - *TIC (Total Ion Current):* Normalizes each sample so that the sum of feature intensities is constant (sample-centric).
 

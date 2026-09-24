@@ -7,6 +7,7 @@ from scipy.spatial import distance
 
 @st.cache_data
 def compute_pcoa_only(scaled, distance_metric):
+    # distances are computed between samples (rows)
     distance_matrix = skbio.stats.distance.DistanceMatrix(
         distance.squareform(distance.pdist(scaled.values, distance_metric)),
         ids=scaled.index,
@@ -23,9 +24,27 @@ def permanova_pcoa(scaled, distance_metric, attribute):
     )
     # perform PERMANOVA test
     permanova = skbio.stats.distance.permanova(distance_matrix, attribute)
-    permanova["R2"] = 1 - 1 / (1 + permanova["test statistic"] * permanova["number of groups"] / (permanova["sample size"] - permanova["number of groups"] - 1))
+    # R2 = SS_between / SS_total. With pseudo-F = (SS_between/(g-1)) / (SS_within/(n-g)):
+    # R2 = F(g-1) / (F(g-1) + (n-g))
+    f_stat = permanova["test statistic"]
+    n_groups = permanova["number of groups"]
+    n_samples = permanova["sample size"]
+    permanova["R2"] = f_stat * (n_groups - 1) / (f_stat * (n_groups - 1) + (n_samples - n_groups))
     permanova_df = permanova.to_frame(name="PERMANOVA results").reset_index()
     permanova_df.columns = ["Metric", "Value"]
+
+    # Homogeneity of group dispersions (PERMDISP), checked before PERMANOVA as in the protocol
+    # (Step 36, vegan::betadisper + anova). A significant result (p < 0.05) means group dispersions
+    # differ, so PERMANOVA results should be interpreted with caution.
+    try:
+        permdisp = skbio.stats.distance.permdisp(distance_matrix, attribute)
+        permdisp_rows = pd.DataFrame({
+            "Metric": ["PERMDISP test statistic (F)", "PERMDISP p-value"],
+            "Value": [permdisp["test statistic"], permdisp["p-value"]],
+        })
+        permanova_df = pd.concat([permanova_df, permdisp_rows], ignore_index=True)
+    except Exception:
+        pass
     permanova_df["Value"] = permanova_df["Value"].apply(lambda x: str(x) if not isinstance(x, (int, float)) else x)
     # perfom PCoA
     pcoa = skbio.stats.ordination.pcoa(distance_matrix)
@@ -34,7 +53,7 @@ def permanova_pcoa(scaled, distance_metric, attribute):
 
 
 # can not hash pcoa
-def get_pcoa_scatter_plot(pcoa, md_samples, color_attribute, pcoa_x_axis, pcoa_y_axis, shape_map=None, symbol_attribute=None):
+def get_pcoa_scatter_plot(pcoa, md_samples, color_attribute, pcoa_x_axis, pcoa_y_axis, shape_map=None, symbol_attribute=None, subtitle=None):
     df = pcoa.samples[[pcoa_x_axis, pcoa_y_axis]]
 
     cols_to_merge = [color_attribute]
@@ -51,6 +70,8 @@ def get_pcoa_scatter_plot(pcoa, md_samples, color_attribute, pcoa_x_axis, pcoa_y
     symbol_col = symbol_attribute if symbol_attribute else color_attribute
 
     title = f"PRINCIPAL COORDINATE ANALYSIS"
+    if subtitle:
+        title += f"<br><sup>{subtitle}</sup>"
     fig = px.scatter(
         df,
         x=pcoa_x_axis,
@@ -88,7 +109,7 @@ def get_pcoa_variance_plot(pcoa):
     fig.update_layout(
         font={"color": "grey", "size": 12, "family": "Sans"},
         title={"text": "PCoA - VARIANCE", "x": 0.5, "font_color": "#3E3D53"},
-        xaxis_title="principal component",
+        xaxis_title="principal coordinate",
         yaxis_title="variance (%)",
     )
     return fig

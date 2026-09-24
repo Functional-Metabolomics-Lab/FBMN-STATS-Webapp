@@ -14,7 +14,7 @@ This page facilitates the Mann-Whitney U test, a non-parametric statistical meth
 - **P-value Correction:** The method selected (globally) to adjust p-values for multiple comparisons (e.g., Benjamini-Hochberg FDR), crucial for high-dimensional metabolomics data.
 
 **Results:**
-- **Results Table:** A comprehensive dataframe listing each feature with its U-statistic, raw p-value, corrected p-value (FDR), means for both groups, and a boolean significance indicator.
+- **Results Table:** A comprehensive dataframe listing each feature with its U-statistic, raw p-value, corrected p-value (using the selected correction method), effect sizes (RBC, CLES), means for both groups, and a boolean significance indicator.
 - **Feature Significance Plot:** A scatter plot visualizing the relationship between the U-statistic and significance (-log10 of corrected p-value), differentiating significant features by color.
 - **Single Metabolite Boxplots:** Detailed boxplots for individual metabolites selected by the user, showing the intensity distribution and statistical significance between the two groups.
 [/PAGE_CONTEXT]

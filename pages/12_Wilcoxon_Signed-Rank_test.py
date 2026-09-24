@@ -17,7 +17,7 @@ The Wilcoxon signed-rank test is a non-parametric test for comparing **two paire
 - When your data are **not normally distributed** or contain outliers.
 - As a robust alternative to the paired t-test.
 
-> ⚠️ **Important:** This test requires that both groups contain the **same number of samples**, ordered to reflect the pairing. Verify your data is structured correctly (e.g., sample *i* in group A corresponds to sample *i* in group B) before running this test.
+> ⚠️ **Important:** This test requires a **subject/pairing column** in your metadata (e.g., patient ID, mouse ID) with the same value for the two matched samples. Samples are paired by this column; subjects that are not measured in both groups are excluded.
 
 ##### 🧪 Choosing between tests
 | Data structure | Parametric | Non-parametric |
@@ -32,11 +32,12 @@ The Wilcoxon signed-rank test is a non-parametric test for comparing **two paire
 - **Less:** tests if group A is systematically less than group B.
 
 ##### 📊 Key outputs
-- **W-val** – Wilcoxon W statistic (sum of positive signed ranks).
-- **p-val** – probability that the observed difference is due to chance (p < 0.05 = significant).
-- **RBC** – rank-biserial correlation; non-parametric effect size ranging from −1 to +1 (|0.1| = small, |0.3| = medium, |0.5| = large).
-- **CLES** – common language effect size; probability that a randomly chosen observation from group A differs from group B.
-- **p-corrected (FDR)** – p-values adjusted for multiple comparisons across all tested metabolites.
+- **W_val** – Wilcoxon W statistic (for a two-sided test, the smaller of the positive and negative signed-rank sums).
+- **p_val** – probability of observing a difference at least this extreme if there were truly no difference between the paired groups (p < 0.05 = significant).
+- **RBC** – matched-pairs rank-biserial correlation; non-parametric effect size ranging from −1 to +1 (|0.1| = small, |0.3| = medium, |0.5| = large).
+- **CLES** – common language effect size; probability that a randomly chosen observation from group A is greater than one from group B.
+- **n pairs** – number of complete subject pairs used for the test.
+- **p-corrected** – p-values adjusted for multiple comparisons across all tested metabolites, using the correction method selected in the sidebar.
 - **Significance** – whether the corrected p-value is below 0.05.
     """)
 
@@ -81,7 +82,14 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     )
 
     c1, c2 = st.columns(2)
-    v_space(2, c1)
+    subject_options = [c for c in st.session_state.md.columns if c != st.session_state.wilcoxon_attribute]
+    c1.selectbox(
+        "subject / pairing column",
+        options=subject_options,
+        key="wilcoxon_subject",
+        help="Metadata column that identifies which samples belong together (e.g., the same patient before and after treatment).",
+        on_change=clear_wilcoxon_data,
+    )
     c2.selectbox(
         "alternative",
         options=["two-sided", "greater", "less"],
@@ -93,7 +101,27 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         on_change=clear_wilcoxon_data,
     )
 
-    run_disabled = len(st.session_state.wilcoxon_options) != 2
+    pairing_ok = False
+    if len(st.session_state.wilcoxon_options) == 2 and st.session_state.get("wilcoxon_subject"):
+        from src.utils import check_pairing
+        n_pairs, duplicated_subjects = check_pairing(
+            st.session_state.md, st.session_state.wilcoxon_attribute,
+            st.session_state.wilcoxon_subject, st.session_state.wilcoxon_options,
+        )
+        if duplicated_subjects:
+            st.error(
+                f"Some subjects have more than one sample in the same group, so pairing is ambiguous: "
+                f"{', '.join(duplicated_subjects[:10])}{' …' if len(duplicated_subjects) > 10 else ''}. "
+                "Please choose a column that uniquely identifies each pair."
+            )
+        elif n_pairs < 2:
+            st.error("Fewer than 2 subjects are measured in both groups. Please check the subject/pairing column.")
+        else:
+            st.info(f"{n_pairs} complete subject pairs found.")
+            pairing_ok = True
+
+    c1, _ = st.columns(2)
+    run_disabled = len(st.session_state.wilcoxon_options) != 2 or not pairing_ok
     if c1.button("Run Wilcoxon Signed-Rank test", type="primary", disabled=run_disabled):
         progress_placeholder = st.empty()
         time_placeholder = st.empty()
@@ -109,6 +137,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state.wilcoxon_options,
             st.session_state.wilcoxon_alternative,
             corrections_map[st.session_state.p_value_correction],
+            st.session_state.wilcoxon_subject,
             _progress_callback=progress_callback,
         )
         progress_placeholder.empty()
@@ -116,8 +145,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
         if result_df.empty:
             st.error(
-                "No results were returned. Please ensure both groups have the **same number of "
-                "samples** (required for paired testing) and at least 2 observations each."
+                "No results were returned. Please ensure at least 2 subjects are measured in both groups "
+                "and that the paired differences are not all zero."
             )
         else:
             st.session_state.df_wilcoxon = result_df

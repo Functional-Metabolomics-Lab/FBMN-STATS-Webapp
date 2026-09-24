@@ -192,7 +192,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             pca_x_axis = st.selectbox("Interested X-Axis", pca_labels)
 
         with col2:
-            pca_y_axis = st.selectbox("Interested Y-Axis", pca_labels, index=1)
+            pca_y_axis = st.selectbox("Interested Y-Axis", pca_labels, index=1 if len(pca_labels) > 1 else 0)
 
         with col3:
             pca_color_by = st.selectbox(

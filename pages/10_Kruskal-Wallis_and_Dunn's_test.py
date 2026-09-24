@@ -14,8 +14,8 @@ with st.expander("📖 About"):
         It checks whether there are statistically significant differences **among three or more groups** without assuming normal distribution or equal variances. 
         If the KW test indicates significant differences among groups, the user can apply Dunn's post-hoc test to directly compare a specific pair of groups to identify where those differences occur.
          
-        The first figure block displays the **K-statistic** and p-value calculation for all groups, showing whether at least one group differs. 
-        The second block shows the concept of performing **Dunn’s post hoc test** on the significant features from KW, highlighting *which groups* are driving the differences.
+        The first figure block displays the **H-statistic** and p-value calculation for all groups, showing whether at least one group differs. 
+        The second block shows the concept of performing **Dunn’s post hoc test** on the significant features from KW, highlighting *which groups* are driving the differences. As in the protocol, Dunn’s p-values are adjusted across all pairwise group comparisons of each feature (with the method selected in the sidebar, Benjamini-Hochberg by default) and the result for the selected pair is reported and plotted as Z statistic vs. -log10(adjusted p).
         
         💡 *Tip:*  Use KW and Dunn’s tests when data are **non-normal**, **heteroscedastic**, or **ordinal**. If your data are normally distributed and have equal variances, use **ANOVA** instead.
         """
@@ -54,6 +54,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state.pop("kruskal_returned_metabolites", None)
             st.session_state.pop("dunn_attempted_metabolites", None)
             st.session_state.pop("dunn_returned_metabolites", None)
+            # the old selection is not valid for the new attribute; fall back to all of its groups
+            st.session_state.pop("kruskal_groups", None)
 
         st.session_state["_prev_kruskal_attribute"] = kruskal_attribute
 
@@ -67,7 +69,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             options=attribute_options,
             default=attribute_options,
             key="kruskal_groups",
-            help="For comparing 2 groups, use the t-test page instead.  If button is disabled, select a different attribute.",
+            help="For comparing 2 groups, use the Mann-Whitney U page instead.  If button is disabled, select a different attribute.",
         )
 
         if prev_kruskal_groups is not None and set(kruskal_groups) != set(prev_kruskal_groups):
@@ -195,8 +197,8 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     if name_cols:
                         name_col = name_cols[0]
                         full_met_name = ft.at[met, name_col]
-                if met in df_kruskal.index and "significant" in df_kruskal.columns:
-                    is_sig = df_kruskal.loc[met, "significant"]
+                if "metabolite" in df_kruskal.columns and met in set(df_kruskal["metabolite"]) and "significant" in df_kruskal.columns:
+                    is_sig = bool(df_kruskal.loc[df_kruskal["metabolite"] == met, "significant"].iloc[0])
                     desc = "Significant" if is_sig else "Insignificant"
                     if full_met_name:
                         st.write(f"**{desc} Metabolite: {full_met_name}**")
@@ -268,7 +270,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                             _kw_pool = _kw_df[_kw_df["significant"] == _kw_want_sig]
                             if _kw_p_col:
                                 _kw_pool = _kw_pool.sort_values(_kw_p_col)
-                            _kw_mets = list(_kw_pool.index[:_kw_top_n])
+                            _kw_mets = list(_kw_pool["metabolite"][:_kw_top_n])
                             _kw_label = f"top{_kw_top_n}_{'significant' if _kw_want_sig else 'insignificant'}"
                     if _kw_mets:
                         with st.spinner(f"Generating PDF — {len(_kw_mets)} boxplot(s)…"):
@@ -361,15 +363,18 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     color_by_options = ["Significance (default)"] + sorted([c for c in st.session_state.md.columns if len(set(st.session_state.md[c])) > 1])
                     st.selectbox("Color significant points by", options=color_by_options, key="dunn_color_by")
                     dunn_numeric = getattr(st.session_state.df_dunn, "_original", st.session_state.df_dunn)
-                    # Test-statistic style plot (x = rank_sum_diff, y = -log10(p))
+                    # Volcano plot as in the protocol (Step 79): x = Dunn's Z statistic, y = -log10(p-corrected)
                     _dunn_color = st.session_state.get("dunn_color_by", "Significance (default)")
                     fig1 = get_dunn_teststat_plot(dunn_numeric, color_by=None if _dunn_color == "Significance (default)" else _dunn_color)
                     show_fig(fig1, "dunn-teststat")
                     st.session_state["page_figs_dunn_teststat"] = fig1
-                    # Volcano plot (x = logFC, y = -log10(p))
+                    # Fold-change volcano plot (x = log2FC, y = -log10(p-corrected)); undefined for scaled data
                     fig2 = get_dunn_volcano_plot(dunn_numeric)
-                    show_fig(fig2, "dunn-volcano")
-                    st.session_state["page_figs_dunn_volcano"] = fig2
+                    if fig2 is not None:
+                        show_fig(fig2, "dunn-volcano")
+                        st.session_state["page_figs_dunn_volcano"] = fig2
+                    else:
+                        st.info("Fold-change volcano plot not shown: fold changes are undefined for centred/scaled data (negative group means). The plot above shows Dunn's Z statistic, as in the protocol.")
 
                 with dunn_sub_tabs[1]:
                     df_dunn = st.session_state.df_dunn.copy()
@@ -421,10 +426,11 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         if col in df_dunn.columns:
                             style_dict[col] = sci_notation_or_plain
 
-                    if "data" in st.session_state and "dunn_n" in st.session_state:
+                    if "dunn_n" in st.session_state:
+                        _kw_tested = st.session_state.get("kw_total", len(st.session_state.df_kruskal))
                         st.caption(
-                            f"ℹ️ Dunn's post-hoc was run on {st.session_state.dunn_n} features "
-                            f"out of {st.session_state.data.shape[1]} KW-tested features."
+                            f"ℹ️ Dunn's post-hoc was run on {st.session_state.dunn_n} KW-significant features "
+                            f"out of {_kw_tested} KW-tested features."
                         )
 
                     if style_dict:

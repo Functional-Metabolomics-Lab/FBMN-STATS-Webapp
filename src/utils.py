@@ -177,6 +177,31 @@ def get_new_index(df):
     return df, "success"
 
 
+def check_pairing(md, attribute, subject_col, groups):
+    """Check how samples pair up across `groups` via the `subject_col` metadata column.
+
+    Returns (n_complete_subjects, duplicated_subjects), where duplicated_subjects lists
+    subjects with more than one sample in the same group (the pairing is then ambiguous).
+    """
+    sub = md.loc[md[attribute].isin(groups), [subject_col, attribute]].dropna()
+    counts = sub.groupby([subject_col, attribute]).size()
+    duplicated = sorted({str(s) for (s, _), n in counts.items() if n > 1})
+    per_subject = sub.drop_duplicates().groupby(subject_col)[attribute].nunique()
+    n_complete = int((per_subject == len(groups)).sum())
+    return n_complete, duplicated
+
+
+def paired_wide(df, value_col, attribute, subject_col, groups):
+    """Return a subjects x groups table of `value_col`, keeping only subjects measured in every group.
+
+    Columns are ordered as in `groups`, so row i of every column belongs to the same subject.
+    Raises ValueError if a subject has more than one sample in a group.
+    """
+    sub = df.loc[df[attribute].isin(groups), [subject_col, attribute, value_col]].dropna()
+    wide = sub.pivot(index=subject_col, columns=attribute, values=value_col)
+    return wide.reindex(columns=list(groups)).dropna()
+
+
 def compute_dominant_groups(metabolites, color_by, sample_filter_column=None, sample_filter_values=None):
     """For each metabolite, determine which group in metadata column color_by has the highest mean intensity."""
     import numpy as np

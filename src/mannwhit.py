@@ -74,7 +74,7 @@ def _clean_mwu_dataframe(df):
 @st.cache_resource
 def plot_mwu(df, color_by=None):
     df = df.copy()
-    df["-log_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log(x + 1e-300))
+    df["-log10_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log10(x + 1e-300))
     import plotly.express as px
     import plotly.graph_objects as go
     if color_by is not None:
@@ -104,7 +104,7 @@ def plot_mwu(df, color_by=None):
     fig = px.scatter(
         df,
         x="U_val",
-        y="-log_p_corrected",
+        y="-log10_p_corrected",
         color="sig_label",
         color_discrete_map=_color_map,
         custom_data=["metabolite_name"],
@@ -127,7 +127,7 @@ def plot_mwu(df, color_by=None):
             "font_color": "#3E3D53",
         },
         xaxis_title="U-statistic",
-        yaxis_title="-Log(p-corrected)",
+        yaxis_title="-log10(p-corrected)",
         showlegend=True,
         legend_title_text="Significance",
     )
@@ -141,9 +141,8 @@ def mwu_boxplot(df_mwu, metabolite):
     options = st.session_state.mwu_options
     df = df[df[attribute].isin(options)].copy()
     df[attribute] = pd.Categorical(df[attribute], categories=options, ordered=True)
-    df = df.reset_index().rename(columns={"index": "filename"})
-    if df.columns[0] == "filename" and st.session_state.data.index.name:
-        df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
+    # sample names -> "filename" column, regardless of whether the index is named
+    df = df.rename_axis("filename").reset_index()
     df["metabolite_name"] = metabolite
     df["intensity"] = df[metabolite]
     df["hovertext"] = df.apply(lambda row: f"filename: {row['filename']}<br>attribute&group: {attribute}, {row[attribute]}<br>metabolite&name: {row['metabolite_name']}<br>intensity: {row['intensity']}", axis=1)

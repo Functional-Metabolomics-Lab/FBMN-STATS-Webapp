@@ -22,10 +22,11 @@ The Mann-Whitney U test (also called Wilcoxon rank-sum test) is a non-parametric
 - **Less:** tests if group A < group B.
 
 ##### 📊 Key outputs
-- **U** – Mann-Whitney U statistic.
-- **p-val** – probability that the observed difference is due to chance (p < 0.05 = significant).
-- **p-corrected (FDR)** – adjusted p-values for multiple comparisons.
-- **Significance** – marks whether the adjusted result remains significant (after FDR).
+- **U_val** – Mann-Whitney U statistic.
+- **p_val** – probability of observing a difference at least this extreme if there were truly no difference between the groups (p < 0.05 = significant).
+- **RBC / CLES** – rank-biserial correlation and common language effect size (effect sizes).
+- **p-corrected** – p-values adjusted for multiple comparisons, using the correction method selected in the sidebar.
+- **Significance** – marks whether the corrected p-value is below 0.05.
     """)
 
 # Ensure st.session_state.df_mwu is initialized

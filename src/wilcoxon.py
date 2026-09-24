@@ -7,14 +7,21 @@ import plotly.graph_objects as go
 import time
 
 
-def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correction, _progress_callback=None):
-    df = pd.concat([st.session_state.data, st.session_state.md], axis=1)
+def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correction, subject_col, _progress_callback=None):
+    """Run a Wilcoxon signed-rank test per metabolite.
+
+    Samples are paired by the metadata column `subject_col`: for each subject, the sample in
+    group A is paired with the sample of the same subject in group B. Subjects that are not
+    measured in both groups are dropped.
+    """
+    from src.utils import paired_wide
+
+    df = pd.concat([st.session_state.data, st.session_state.md[[wilcoxon_attribute, subject_col]]], axis=1)
     wilcoxon_results = []
     columns = []
     for col in st.session_state.data.columns:
-        g1 = df[col][df[wilcoxon_attribute] == target_groups[0]].dropna().reset_index(drop=True)
-        g2 = df[col][df[wilcoxon_attribute] == target_groups[1]].dropna().reset_index(drop=True)
-        if min(len(g1), len(g2)) >= 2:
+        wide = paired_wide(df, col, wilcoxon_attribute, subject_col, target_groups)
+        if len(wide) >= 2:
             columns.append(col)
     total = len(columns)
     st.session_state.wilcoxon_attempted_metabolites = total
@@ -30,15 +37,12 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
             est_left = (elapsed / done) * (total - done) if done > 0 else 0
             _progress_callback(done, total, est_left)
 
-        group1 = df[col][df[wilcoxon_attribute] == target_groups[0]].reset_index(drop=True)
-        group2 = df[col][df[wilcoxon_attribute] == target_groups[1]].reset_index(drop=True)
-
-        # Paired test requires equal-length groups; truncate to the shorter one
-        min_len = min(len(group1), len(group2))
-        if min_len < 2:
+        # Align the two groups by subject so that row i of both groups is the same subject
+        wide = paired_wide(df, col, wilcoxon_attribute, subject_col, target_groups)
+        if len(wide) < 2:
             continue
-        group1 = group1[:min_len]
-        group2 = group2[:min_len]
+        group1 = wide[target_groups[0]].astype(float)
+        group2 = wide[target_groups[1]].astype(float)
 
         median1 = group1.median()
         median2 = group2.median()
@@ -51,6 +55,7 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
         result["metabolite"] = col
         result["median(A)"] = median1
         result["median(B)"] = median2
+        result["n pairs"] = len(wide)
         wilcoxon_results.append(result)
 
     if not wilcoxon_results:
@@ -62,7 +67,7 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
         wilcoxon_df = wilcoxon_df.dropna(subset=["p_val"])
     st.session_state.wilcoxon_returned_metabolites = len(wilcoxon_df)
 
-    wilcoxon_df.insert(4, "p-corrected", pg.multicomp(wilcoxon_df["p-val"].astype(float), method=p_correction)[1])
+    wilcoxon_df.insert(4, "p-corrected", pg.multicomp(wilcoxon_df["p_val"].astype(float), method=p_correction)[1])
     wilcoxon_df.insert(5, "significance", wilcoxon_df["p-corrected"] < 0.05)
     wilcoxon_df.insert(6, "attribute", wilcoxon_attribute)
     wilcoxon_df.insert(7, "A", target_groups[0])
@@ -92,7 +97,7 @@ def _clean_wilcoxon_dataframe(df):
 @st.cache_resource
 def plot_wilcoxon(df, color_by=None):
     df = df.copy()
-    df["-log_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log(x + 1e-300))
+    df["-log10_p_corrected"] = df["p-corrected"].apply(lambda x: -np.log10(x + 1e-300))
     if color_by is not None:
         from src.utils import compute_dominant_groups
         sig_mets = list(df[df["significance"]].index)
@@ -121,8 +126,8 @@ def plot_wilcoxon(df, color_by=None):
 
     fig = px.scatter(
         df,
-        x="W-val",
-        y="-log_p_corrected",
+        x="W_val",
+        y="-log10_p_corrected",
         color="sig_label",
         color_discrete_map=_color_map,
         custom_data=["metabolite_name"],
@@ -132,7 +137,7 @@ def plot_wilcoxon(df, color_by=None):
     )
     fig.update_traces(hovertemplate="metabolite&name: %{customdata[0]}<extra></extra>")
 
-    xlim = [df["W-val"].min(), df["W-val"].max()]
+    xlim = [df["W_val"].min(), df["W_val"].max()]
     x_padding = (
         abs(xlim[1] - xlim[0]) / 5
         if (xlim[1] != xlim[0] and pd.notnull(xlim[0]) and pd.notnull(xlim[1]))
@@ -152,7 +157,7 @@ def plot_wilcoxon(df, color_by=None):
         font={"color": "grey", "size": 12, "family": "Sans"},
         title={"text": title_text, "font_color": "#3E3D53"},
         xaxis_title="W-statistic",
-        yaxis_title="-Log(p-corrected)",
+        yaxis_title="-log10(p-corrected)",
         showlegend=True,
         legend_title_text="Significance",
     )
@@ -168,9 +173,8 @@ def wilcoxon_boxplot(df_wilcoxon, metabolite):
     options = st.session_state.wilcoxon_options
     df = df[df[attribute].isin(options)].copy()
     df[attribute] = pd.Categorical(df[attribute], categories=options, ordered=True)
-    df = df.reset_index().rename(columns={"index": "filename"})
-    if df.columns[0] == "filename" and st.session_state.data.index.name:
-        df.rename(columns={"filename": st.session_state.data.index.name}, inplace=True)
+    # sample names -> "filename" column, regardless of whether the index is named
+    df = df.rename_axis("filename").reset_index()
 
     df["metabolite_name"] = metabolite
     df["intensity"] = df[metabolite]
