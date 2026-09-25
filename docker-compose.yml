@@ -23,7 +23,3 @@ services:
       LETSENCRYPT_EMAIL: mwang87@gmail.com
       ENVIRONMENT_MODE: gnps
 
-networks:
-  nginx-net:
-    external:
-      name: nginx-net
