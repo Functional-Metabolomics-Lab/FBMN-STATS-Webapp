@@ -12,7 +12,7 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 RUN echo "export PATH=$CONDA_DIR:$PATH" >> ~/.bashrc
 
 RUN mamba install -y -n base -c conda-forge \
-	python=3.10 \
+	python=3.12 \
 	numpy \
 	scikit-bio \
 	&& mamba clean -afy
