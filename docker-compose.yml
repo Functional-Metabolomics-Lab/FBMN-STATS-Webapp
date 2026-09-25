@@ -11,9 +11,6 @@ services:
       - ./logs:/app/logs:rw
     ports:
       - "5017:5000"
-    networks:
-      - default
-      - nginx-net
     restart: unless-stopped
     command: /app/run_server.sh
     environment:
