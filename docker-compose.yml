@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: statsapp-streamlit
+    ports:
+      - "8004:5000"
     env_file:
       - .env
     volumes:
