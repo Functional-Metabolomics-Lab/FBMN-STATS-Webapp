@@ -10,7 +10,7 @@ services:
     volumes:
       - ./logs:/app/logs:rw
     ports:
-      - "5017:5000"
+      - "5000:5017"
     restart: unless-stopped
     command: /app/run_server.sh
     environment:
