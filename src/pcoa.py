@@ -15,8 +15,8 @@ def compute_pcoa_only(scaled, distance_metric):
     return skbio.stats.ordination.pcoa(distance_matrix)
 
 @st.cache_data
-def permanova_pcoa(scaled, distance_metric, attribute):
-    
+def compute_permanova(scaled, distance_metric, attribute):
+
     # Create the distance matrix from the original data
     distance_matrix = skbio.stats.distance.DistanceMatrix(
         distance.squareform(distance.pdist(scaled.values, distance_metric)),
@@ -45,11 +45,9 @@ def permanova_pcoa(scaled, distance_metric, attribute):
         permanova_df = pd.concat([permanova_df, permdisp_rows], ignore_index=True)
     except Exception:
         pass
-    permanova_df["Value"] = permanova_df["Value"].apply(lambda x: str(x) if not isinstance(x, (int, float)) else x)
-    # perfom PCoA
-    pcoa = skbio.stats.ordination.pcoa(distance_matrix)
-    
-    return permanova_df, pcoa
+    # all values as strings: a mixed str/number column cannot be serialized to Arrow by st.dataframe
+    permanova_df["Value"] = permanova_df["Value"].astype(str)
+    return permanova_df
 
 
 # can not hash pcoa

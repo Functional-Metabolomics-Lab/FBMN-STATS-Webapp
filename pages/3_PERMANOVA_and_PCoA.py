@@ -93,7 +93,9 @@ try:
         committed_shapes = st.session_state.get("pcoa_committed_shapes", {})
         current_samps = set(s for cat_samps in selections.values() for s in cat_samps)
         current_shapes = dict(shape_selections) if shape_selections else {}
-        is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps or current_shapes != committed_shapes
+        # categories without a committed shape are drawn as circles, the widget default
+        effective_committed_shapes = {cat: committed_shapes.get(cat, "circle") for cat in current_shapes}
+        is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps or current_shapes != effective_committed_shapes
 
         if is_dirty:
             st.warning("⚠️ Unsaved changes — click Done to apply.")
@@ -201,17 +203,16 @@ try:
             )
         with col_color:
             pcoa_color_by = st.selectbox(
-                "Color by (also controls PERMANOVA grouping)",
+                "Color by",
                 valid_color_cols,
                 key="pcoa_color_by",
-                help="Only metadata columns that have at least one value among the filtered samples are shown. The selected column is used to color the PCoA plot and as the grouping variable for PERMANOVA — independently of the filtering attribute above.",
+                help="Only metadata columns that have at least one value among the filtered samples are shown. Changing this only recolors the PCoA plot; PCoA and PERMANOVA are calculated from the filtering attribute above.",
             )
 
-        # PERMANOVA uses the filtered samples, but grouped by the color-by attribute
-        perm_md = filtered_md[filtered_md[pcoa_color_by].notna()]
-        perm_data = filtered_data.loc[perm_md.index]
-        n_unique = perm_md[pcoa_color_by].nunique()
-        min_per_cat = perm_md[pcoa_color_by].value_counts().min() if n_unique > 0 else 0
+        # PERMANOVA is grouped by the filtering attribute (never by the color-by column), so
+        # changing the coloring does not trigger any recalculation
+        n_unique = filtered_md[att_col].nunique()
+        min_per_cat = filtered_md[att_col].value_counts().min() if n_unique > 0 else 0
         total_samples = len(filtered_md)
 
         if total_samples < 2:
@@ -221,22 +222,21 @@ try:
 
             if not can_permanova:
                 if n_unique < 2:
-                    st.warning(f"⚠️ PERMANOVA requires at least 2 categories in '{pcoa_color_by}' among the filtered samples — showing PCoA only.")
+                    st.warning(f"⚠️ PERMANOVA requires at least 2 categories in '{att_col}' among the filtered samples — showing PCoA only.")
                 elif min_per_cat < 2:
-                    st.warning(f"⚠️ PERMANOVA requires at least 2 samples per category in '{pcoa_color_by}' among the filtered samples — showing PCoA only.")
+                    st.warning(f"⚠️ PERMANOVA requires at least 2 samples per category in '{att_col}' among the filtered samples — showing PCoA only.")
 
             try:
+                pcoa_result = compute_pcoa_only(
+                    filtered_data,
+                    st.session_state.pcoa_distance_matrix,
+                )
+                permanova = None
                 if can_permanova:
-                    permanova, pcoa_result = permanova_pcoa(
-                        perm_data,
-                        st.session_state.pcoa_distance_matrix,
-                        perm_md[pcoa_color_by],
-                    )
-                else:
-                    permanova = None
-                    pcoa_result = compute_pcoa_only(
+                    permanova = compute_permanova(
                         filtered_data,
                         st.session_state.pcoa_distance_matrix,
+                        filtered_md[att_col],
                     )
             except Exception as e:
                 st.error(
@@ -259,9 +259,9 @@ try:
                     pcoa_y_axis = st.selectbox("Interested Y-axis for plot", available_pcs, index=1 if len(available_pcs) > 1 else 0, key="pcoa_y_axis")
 
                 if att_col == pcoa_color_by:
-                    st.info("ℹ️ The **filter by** and **color by / PERMANOVA grouping** categories are the same — the plot will be organized by that single metadata category.")
+                    st.info("ℹ️ The **filter by** and **color by** categories are the same — the plot will be organized by that single metadata category.")
                 else:
-                    st.info(f"ℹ️ The **filter by** (*{att_col}*) and **color by / PERMANOVA grouping** (*{pcoa_color_by}*) categories differ — points are filtered and shaped by *{att_col}*, but colored and grouped for PERMANOVA by *{pcoa_color_by}*.")
+                    st.info(f"ℹ️ The **filter by** (*{att_col}*) and **color by** (*{pcoa_color_by}*) categories differ — points are filtered, shaped and grouped for PERMANOVA by *{att_col}*, but colored by *{pcoa_color_by}*.")
 
                 if pcoa_x_axis == pcoa_y_axis:
                     st.warning("⚠️ X-axis and Y-axis cannot be the same. Please choose different axes to view results.")

@@ -96,7 +96,9 @@ def advanced_filtering(attribute_col, all_categories, md_all):
     committed_shapes = st.session_state.get("pca_committed_shapes", {})
     current_samps = set(s for cat_samps in selections.values() for s in cat_samps)
     current_shapes = dict(shape_selections) if shape_selections else {}
-    is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps or current_shapes != committed_shapes
+    # categories without a committed shape are drawn as circles, the widget default
+    effective_committed_shapes = {cat: committed_shapes.get(cat, "circle") for cat in current_shapes}
+    is_dirty = set(selected_cats) != set(committed_cats) or current_samps != committed_samps or current_shapes != effective_committed_shapes
 
     if is_dirty:
         st.warning("⚠️ Unsaved changes - click Done to apply.")
