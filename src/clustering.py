@@ -17,6 +17,7 @@ def parse_feature_labels(columns):
     mz_values, rt_values = [], []
     for col in columns:
         try:
+            col = str(col)  # feature labels can be non-strings (e.g. integer IDs)
             at_idx = col.index("@")
             rt = float(col[at_idx + 1:])
             mz = float(col[:at_idx].rsplit("_", 1)[1])
