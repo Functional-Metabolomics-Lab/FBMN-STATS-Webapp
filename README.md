@@ -12,7 +12,7 @@ You can run the Statistics for Metabolomics app in two ways:
 
 1. **From source code**
    - Download or clone this repository.
-   - Requires **Python 3.11 or newer**.
+   - Requires **Python 3.9**.
    - Open a terminal in the project folder and run:
      ```bash
      pip install -r requirements.txt
