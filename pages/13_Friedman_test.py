@@ -212,9 +212,9 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     style_dict[col] = sci_notation_or_plain
             if style_dict:
                 styled = df_display.style.format(style_dict)
-                st.dataframe(styled, use_container_width=True, hide_index=True)
+                st.dataframe(styled, width="stretch", hide_index=True)
             else:
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(df_display, width="stretch", hide_index=True)
 
         # --- Tab 2: Metabolite boxplots ---
         with tabs[2]:

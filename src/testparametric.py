@@ -22,6 +22,13 @@ def _correct(raw_pvals, correction):
     return list(out)
 
 
+def _group_columns(data, md, attribute, group):
+    # Slice the group's rows once and hand back one NaN-free array per feature. Selecting rows
+    # with df.loc inside the per-feature loop took ~20 s on the 3.7k-feature example dataset.
+    values = data.loc[md[attribute].reindex(data.index) == group].to_numpy(dtype=float)
+    return [col[~np.isnan(col)] for col in values.T]
+
+
 def _p_label(correction):
     return "p-value" if correction in (None, "none") else f"p-value (corrected: {correction})"
 
@@ -48,12 +55,9 @@ def _variance_histogram(pvals, between, title, correction):
 @st.cache_data(show_spinner="Testing for equal variance...")
 def test_equal_variance(data, md, attribute, between, correction):
     # test for equal variance (scipy's default center='median', i.e. the Brown-Forsythe variant of Levene's test)
-    df = pd.concat([data, md[[attribute]]], axis=1)
     raw_pvals = []
-    for f in data.columns:
-        g0 = df.loc[df[attribute] == between[0], f].dropna()
-        g1 = df.loc[df[attribute] == between[1], f].dropna()
-        if len(g0) < 2 or len(g1) < 2 or (g0.std() == 0 and g1.std() == 0):
+    for g0, g1 in zip(_group_columns(data, md, attribute, between[0]), _group_columns(data, md, attribute, between[1])):
+        if len(g0) < 2 or len(g1) < 2 or (g0.std(ddof=1) == 0 and g1.std(ddof=1) == 0):
             raw_pvals.append(np.nan)
         else:
             raw_pvals.append(stats.levene(g0, g1)[1])
@@ -63,12 +67,9 @@ def test_equal_variance(data, md, attribute, between, correction):
 @st.cache_data(show_spinner="Testing for equal variance (Bartlett)...")
 def test_equal_variance_bartlett(data, md, attribute, between, correction):
     # test for equal variance using Bartlett's test
-    df = pd.concat([data, md[[attribute]]], axis=1)
     raw_pvals = []
-    for f in data.columns:
-        g0 = df.loc[df[attribute] == between[0], f].dropna()
-        g1 = df.loc[df[attribute] == between[1], f].dropna()
-        if len(g0) < 2 or len(g1) < 2 or g0.std() == 0 or g1.std() == 0:
+    for g0, g1 in zip(_group_columns(data, md, attribute, between[0]), _group_columns(data, md, attribute, between[1])):
+        if len(g0) < 2 or len(g1) < 2 or g0.std(ddof=1) == 0 or g1.std(ddof=1) == 0:
             raw_pvals.append(np.nan)
         else:
             raw_pvals.append(stats.bartlett(g0, g1)[1])
@@ -78,7 +79,6 @@ def test_equal_variance_bartlett(data, md, attribute, between, correction):
 @st.cache_data(show_spinner="Testing for normal distribution...")
 def test_normal_distribution(data, md, attribute, between, correction):
     # test for normal distribution
-    df = pd.concat([data, md[[attribute]]], axis=1)
     for b in between:
         if md[attribute].value_counts().get(b, 0) < 3:
             st.warning("You need at least 3 values in each option to test for normality!")
@@ -86,9 +86,8 @@ def test_normal_distribution(data, md, attribute, between, correction):
     normality_dict = {}
     for b in between:
         raw_pvals = []
-        for f in data.columns:
-            vals = df.loc[df[attribute] == b, f].dropna()
-            if len(vals) < 3 or vals.std() == 0:
+        for vals in _group_columns(data, md, attribute, b):
+            if len(vals) < 3 or vals.std(ddof=1) == 0:
                 raw_pvals.append(np.nan)
             else:
                 with warnings.catch_warnings():

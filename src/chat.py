@@ -3,8 +3,6 @@ import json
 import base64
 import io
 
-import litellm
-
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -461,6 +459,10 @@ def call_llm_with_context(user_message):
 		messages.append({"role": "user", "content": msg_content})
 
 	try:
+		# imported here rather than at module level: litellm takes several seconds to import
+		# (minutes on a fresh Windows install), which would block every page load
+		import litellm
+
 		if USE_GEMINI_FALLBACK:
 			response = litellm.completion(
 				model=GEMINI_MODEL,
@@ -559,13 +561,13 @@ def render_sidebar_chat():
 			# Clear the input box
 			st.session_state["gemini_chat_input"] = ""
 
-	if st.button("Send", key="gemini_chat_send", use_container_width=True, on_click=handle_send):
+	if st.button("Send", key="gemini_chat_send", width="stretch", on_click=handle_send):
 		# logic handled in callback to allow clearing st.session_state["gemini_chat_input"]
 		pass
 
 	if st.session_state["chat_history"]:
 		col1, col2 = st.columns(2)
-		if col1.button("Clear History", key="gemini_chat_clear", use_container_width=True):
+		if col1.button("Clear History", key="gemini_chat_clear", width="stretch"):
 			st.session_state["chat_history"] = []
 			st.rerun() if hasattr(st, "rerun") else st.experimental_rerun()
 

@@ -171,9 +171,9 @@ to reducing impurity across all trees in the forest.
                 style_dict["importance"] = sci_notation_or_plain
             if style_dict:
                 styled = df_imp.style.format(style_dict)
-                st.dataframe(styled, use_container_width=True)
+                st.dataframe(styled, width="stretch")
             else:
-                st.dataframe(df_imp, use_container_width=True)
+                st.dataframe(df_imp, width="stretch")
 
         with fi_tab2:
             total_features = len(st.session_state.df_important_features)

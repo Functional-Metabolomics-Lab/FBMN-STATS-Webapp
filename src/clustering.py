@@ -94,7 +94,7 @@ def get_clustermap(data, color, vmin=None, vmax=None, dendro_height=0.2, heatmap
     fig.update_xaxes(tickmode="array", tickvals=leaf_positions, ticktext=leaf_labels, row=2, col=1)
     fig.update_xaxes(showticklabels=False, row=1, col=1)
 
-    # st.plotly_chart(fig, use_container_width=True)
+    # st.plotly_chart(fig, width="stretch")
         
     # Update layout
     fig.update_layout(

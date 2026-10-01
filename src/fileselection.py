@@ -136,6 +136,11 @@ def load_nw(network_file):
 
 
 ### GNPS LOADING FUNCTIONS ###
+GNPS2_FBMN_QUANT_TABLE_PATHS = [ # "reformated" (sic) is the file name GNPS2 actually writes
+    "nf_output/clustering/featuretable_reformated.csv",
+    "nf_output/clustering/featuretable_reformatted.csv",
+]
+
 def load_from_gnps_fbmn(task_id):
 
     """
@@ -148,23 +153,19 @@ def load_from_gnps_fbmn(task_id):
     if task_id == "b661d12ba88745639664988329c1363e":
         return load_from_gnps1_fbmn(task_id)
 
-    # --------Normal worfflow: Try GNPS2 FBMN API --------
-    try: # GNPS2 will run here
-        ft = workflow_fbmn.get_quantification_dataframe(task_id, gnps2=True)
-        md = workflow_fbmn.get_metadata_dataframe(task_id, gnps2=True)
-        if isinstance(md, pd.DataFrame) and "filename" in md.columns:
-            md = md.set_index("filename")
-        
-        an = taskresult.get_gnps2_task_resultfile_dataframe(task_id, "nf_output/library/merged_results_with_gnps.tsv")
-        nw = taskresult.get_gnps2_task_resultfile_dataframe(task_id, "nf_output/networking/filtered_pairs.tsv")
-            
-        # Force fallback if feature table is missing/empty
-        if ft is None or (isinstance(ft, pd.DataFrame) and ft.empty):
-            raise ValueError("Empty result from GNPS2 — falling back to GNPS1.")
-                
-    except (urllib.error.HTTPError, ValueError, AttributeError, KeyError) as e:
-        st.error(f"GNPS2 unavailable or empty: {e}") # GNPS1 task IDs can not be retrieved and throw HTTP Error 500
+    # --------Normal workflow: GNPS2 --------
+    # Fetched with requests: the gnpsdata helpers use pandas' urllib client, which GNPS2 rejects with
+    # HTTP 403, so they silently return None.
+    ft, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_FBMN_QUANT_TABLE_PATHS, delimiter=",")
+    if ft is None:
+        st.error("GNPS2 unavailable or empty: could not retrieve the feature table — falling back to GNPS1.")
         return load_from_gnps1_fbmn(task_id)
+
+    md, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_EB_METADATA_PATHS, delimiter="\t")
+    if isinstance(md, pd.DataFrame) and "filename" in md.columns:
+        md = md.set_index("filename")
+    an, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_FBMN_LIBRARY_PATHS, delimiter="\t")
+    nw, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_EB_NETWORK_PATHS, delimiter="\t")
 
     if not isinstance(md, pd.DataFrame): # Handle empty metadata
         md = pd.DataFrame()

@@ -110,7 +110,7 @@ else:
 
             _, c2, _ = st.columns(3)
 
-            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, use_container_width=True):
+            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, width="stretch"):
                 try:
                     st.session_state["ft_gnps"], st.session_state["md_gnps"],  st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps2_cmn(task_id)
                 except ValueError as e:
@@ -158,7 +158,7 @@ else:
 
             _, c2, _ = st.columns(3)
 
-            if c2.button("Load files from GNPS(2)", type="primary", disabled=len(task_id) == 0, use_container_width=True):
+            if c2.button("Load files from GNPS(2)", type="primary", disabled=len(task_id) == 0, width="stretch"):
                 try:
                     st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps_fbmn(task_id)
                 except Exception as e:
@@ -206,7 +206,7 @@ else:
 
             _, c2, _ = st.columns(3)
 
-            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, use_container_width=True):
+            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, width="stretch"):
                 try:
                     with st.status("Fetching Everything Bagel task data...", expanded=True):
                         st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps2_eb(task_id)

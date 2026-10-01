@@ -253,11 +253,11 @@ def display_dataframe(df, title="table", col=None, hide_index=False):
     col = col or st
     n_rows, n_cols = df.shape
     if n_rows * n_cols <= MAX_DISPLAY_CELLS and n_cols <= MAX_DISPLAY_COLS:
-        col.dataframe(df, use_container_width=True, hide_index=hide_index)
+        col.dataframe(df, width="stretch", hide_index=hide_index)
         return
     shown_cols = min(n_cols, MAX_DISPLAY_COLS)
     shown_rows = max(1, min(n_rows, MAX_DISPLAY_CELLS // shown_cols))
-    col.dataframe(df.iloc[:shown_rows, :shown_cols], use_container_width=True, hide_index=hide_index)
+    col.dataframe(df.iloc[:shown_rows, :shown_cols], width="stretch", hide_index=hide_index)
     col.caption(
         f"Large table: showing the first {shown_rows:,} of {n_rows:,} rows and {shown_cols:,} of {n_cols:,} columns. "
         "Download the full table below."
@@ -300,7 +300,7 @@ def show_fig(fig, download_name, container_width=True):
 
     st.plotly_chart(
         fig,
-        use_container_width=container_width,
+        width="stretch" if container_width else "content",
         config={
             "displaylogo": False,
             "modeBarButtonsToRemove": [

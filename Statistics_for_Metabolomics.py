@@ -6,7 +6,7 @@ page_setup()
 init_state()
 st.session_state["current_page"] = "Home"
 
-st.image("assets/FBMN-STATS-GUIed_logo2.png", use_container_width=True)
+st.image("assets/FBMN-STATS-GUIed_logo2.png", width="stretch")
 
 st.markdown("""
 ## Quickstart Guide
