@@ -109,28 +109,12 @@ def run_random_forest(data, md, attribute, n_trees, random_seed=None, _progress_
 
     df_oob = pd.DataFrame({"n trees": tree_range, "error rate": errors})
 
-    # OOB evaluation on all samples, as in the protocol (rfPermute, Steps 53-55): every tree is
-    # validated on the samples it did not see, with class-balanced sampling, and no separate test split.
-    rf_all = RandomForestClassifier(n_estimators=n_trees, class_weight="balanced_subsample",
-                                    oob_score=True, random_state=random_seed)
-    rf_all.fit(features, labels)
-    oob_proba = rf_all.oob_decision_function_
-    has_oob = ~np.isnan(oob_proba).any(axis=1)
-    oob_pred = rf_all.classes_[np.argmax(np.nan_to_num(oob_proba, nan=-1.0), axis=1)]
-    oob_confusion = confusion_matrix(labels[has_oob], oob_pred[has_oob], labels=label_values)
-    oob_confusion_df = pd.DataFrame(oob_confusion, index=class_names, columns=class_names)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        pct_correct = np.diag(oob_confusion) / oob_confusion.sum(axis=1) * 100
-    oob_confusion_df["pct.correct"] = np.round(pct_correct, 1)
-    oob_accuracy = accuracy_score(labels[has_oob], oob_pred[has_oob])
-    log += f"OOB accuracy (all samples, class-balanced, {n_trees} trees): {oob_accuracy:.1%}\n"
-
     # Extract the important features in the model
     df_important_features = pd.DataFrame(rf.feature_importances_, 
                                          index=data.columns).sort_values(by=0, ascending=False)
     df_important_features.columns = ["importance"]
     
-    return df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy, oob_confusion_df, oob_accuracy
+    return df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy
 
 
 def get_oob_fig(df):

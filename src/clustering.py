@@ -103,7 +103,22 @@ def get_clustermap(data, color, vmin=None, vmax=None, dendro_height=0.2, heatmap
         margin=dict(l=0, r=0, t=30, b=0)
     )
 
-    fig.update_xaxes(tickangle=35, row=2, col=1)
+    # Show a label for every sample: vertical labels, a font that shrinks with the number of
+    # samples, every tick listed, and room at the bottom for the longest label.
+    n_samples = len(leaf_labels)
+    longest = max((len(str(l)) for l in leaf_labels), default=0)
+    font_size = int(min(12, max(6, 600 / max(n_samples, 1))))
+    fig.update_xaxes(
+        tickangle=90,
+        tickfont=dict(size=font_size),
+        ticklabelstep=1,
+        automargin=True,
+        row=2, col=1,
+    )
+    fig.update_layout(
+        width=max(700, 18 * n_samples),
+        margin=dict(l=0, r=0, t=30, b=min(400, 20 + int(longest * font_size * 0.62))),
+    )
     return fig, ord_ft
 
 @st.cache_resource

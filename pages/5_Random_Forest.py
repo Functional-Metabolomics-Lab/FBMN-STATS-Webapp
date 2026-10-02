@@ -6,8 +6,7 @@ from src.randomforest import *
 def clear_rf_outputs():
     for key in [
         'df_oob', 'df_important_features', 'log', 'class_report', 'label_mapping',
-        'test_confusion_df', 'train_confusion_df', 'test_accuracy', 'train_accuracy',
-        'oob_confusion_df', 'oob_accuracy']:
+        'test_confusion_df', 'train_confusion_df', 'test_accuracy', 'train_accuracy']:
         if key in st.session_state:
             del st.session_state[key]
 
@@ -65,14 +64,16 @@ if st.session_state.data is not None and not st.session_state.data.empty:
         "select at least 2 categories to include (optional)",
         options=rf_categories_options,
         default=rf_categories_options,
-        key="rf_categories",
+        key=f"rf_categories_{st.session_state.rf_attribute}",
         help="If you want to include only specific categories for classification, select them here. Otherwise, all categories will be used.",
         on_change=clear_rf_outputs
     )
 
     # Disable the button if less than two categories are selected
-    selected_categories = st.session_state.get("rf_categories", [])
+    selected_categories = st.session_state.get(f"rf_categories_{st.session_state.rf_attribute}", [])
     button_disabled = len(selected_categories) < 2
+    # keep the plain key in sync; the chat context reads "rf_categories"
+    st.session_state["rf_categories"] = selected_categories
 
 
     c1.number_input(
@@ -87,7 +88,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     if c2.button("Run supervised learning", type="primary", disabled=button_disabled):
         try:
             # Filter data and metadata to only include selected categories, but do NOT overwrite originals
-            selected_categories = st.session_state.rf_categories
+            selected_categories = st.session_state[f"rf_categories_{st.session_state.rf_attribute}"]
             if selected_categories:
                 mask = md_full[st.session_state.rf_attribute].isin(selected_categories)
                 data_filtered = data_full[mask]
@@ -104,7 +105,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 progress = done / total
                 progress_placeholder.progress(progress, text=f"Fitting Random Forest model: step {done} of {total}")
                 time_placeholder.info(f"Estimated time remaining: {int(est_left)} seconds")
-            df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy, oob_confusion_df, oob_accuracy = run_random_forest(data_filtered, md_filtered, st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed, _progress_callback=progress_callback)
+            df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy = run_random_forest(data_filtered, md_filtered, st.session_state.rf_attribute, st.session_state.rf_n_trees, random_seed, _progress_callback=progress_callback)
             progress_placeholder.empty()
             time_placeholder.empty()
             st.session_state['df_oob'] = df_oob
@@ -116,8 +117,6 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             st.session_state['train_confusion_df'] = train_confusion_df
             st.session_state['test_accuracy'] = test_accuracy
             st.session_state['train_accuracy'] = train_accuracy
-            st.session_state['oob_confusion_df'] = oob_confusion_df
-            st.session_state['oob_accuracy'] = oob_accuracy
         except Exception as e:
             st.error(f"Failed to run model due to: {str(e)}")
 else:
@@ -235,12 +234,6 @@ A **Confusion Matrix** shows how many samples were classified correctly vs. inco
 
 If training accuracy is much higher than test accuracy, the model may be **overfitting**.
             """)
-        if 'oob_confusion_df' in st.session_state:
-            st.subheader("Out-of-Bag (OOB) Confusion Matrix — all samples")
-            st.caption("As in the protocol (rfPermute): each sample is predicted only by the trees that did not use it for training, with class-balanced sampling. Rows = true class, columns = predicted class.")
-            st.dataframe(st.session_state.oob_confusion_df)
-            st.write(f"OOB Accuracy: {st.session_state.oob_accuracy:.2%}")
-
         st.subheader("Train Set Confusion Matrix")
         st.dataframe(st.session_state.train_confusion_df)
         st.write(f"Train Set Accuracy: {st.session_state.train_accuracy:.2%}")
