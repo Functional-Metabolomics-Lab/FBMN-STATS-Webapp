@@ -23,19 +23,38 @@ else:
 
     ft, md, an, nw = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    file_origin = st.radio("File origin", 
-                           ["Quantification table and meta data files", 
-                            "GNPS(2) FBMN task ID", 
-                            "Example dataset from publication", 
-                            "Small example dataset for testing",
-                            "GNPS2 classical molecular networking (CMN) task ID",
-                            "GNPS2 Everything Bagel task ID"])
-    
+    # Task IDs of the test datasets that are loaded automatically (the ID field is locked)
+    TEST_CMN_TASK_ID = "66c76de5726e46e39f0853420e9506e1"
+    TEST_EB_TASK_ID = "f8a1070843e2450c9133ee1da0b67c64"
+
+    # Test data sub-options -> the file origin handled by the branches below
+    TEST_DATA_ORIGINS = {
+        "FBMN task ID - Example dataset from publication": "Example dataset from publication",
+        "FBMN task ID - Small dataset for testing": "Small example dataset for testing",
+        "CMN task ID": "GNPS2 Classical Molecular Networking (CMN) Task ID",
+        "EB task ID": "GNPS2 Everything Bagel Task ID",
+    }
+
+    top_origin = st.radio("File origin",
+                          ["Manual Input",
+                           "GNPS(2) FBMN Task ID",
+                           "GNPS2 Classical Molecular Networking (CMN) Task ID",
+                           "GNPS2 Everything Bagel Task ID",
+                           "Test Data"])
+
+    test_data = top_origin == "Test Data"
+    if test_data:
+        test_choice = st.radio("Test dataset", list(TEST_DATA_ORIGINS))
+        file_origin = TEST_DATA_ORIGINS[test_choice]
+        origin_key = test_choice
+    else:
+        file_origin = origin_key = top_origin
+
     # Start from a clean slate only when the file origin changes. Resetting on every rerun would wipe
     # tables loaded from a task ID as soon as the user interacts with the page (e.g. uploads metadata).
-    if st.session_state.get("prev_file_origin") != file_origin:
+    if st.session_state.get("prev_file_origin") != origin_key:
         reset_dataframes()
-        st.session_state["prev_file_origin"] = file_origin
+        st.session_state["prev_file_origin"] = origin_key
 
     #Initialize keys
     for k in ["ft_gnps", "md_gnps", "an_gnps", "nw_gnps", "ft_with_annotations"]:
@@ -49,7 +68,7 @@ else:
         st.session_state.update({"ft": ft, "md": md, "an": an, "nw": nw, "ft_with_annotations": ft_with_annotations})
         show_all_files_in_table("ft", "md", "an", "nw", "ft_with_annotations")
 
-    elif file_origin in ["GNPS(2) FBMN task ID", "Example dataset from publication", "GNPS2 classical molecular networking (CMN) task ID", "GNPS2 Everything Bagel task ID"]:
+    elif file_origin in ["GNPS(2) FBMN Task ID", "Example dataset from publication", "GNPS2 Classical Molecular Networking (CMN) Task ID", "GNPS2 Everything Bagel Task ID"]:
         
         st.warning("💡 This tool only supports FBMN task ID from GNPS1 and 2 not from Quickstart GNPS1.")
         
@@ -86,11 +105,11 @@ else:
 
             show_all_files_in_table("ft_gnps", "md_gnps", "an_gnps", "nw_gnps", "ft_with_annotations")      
         
-        elif file_origin == "GNPS2 classical molecular networking (CMN) task ID":
+        elif file_origin == "GNPS2 Classical Molecular Networking (CMN) Task ID":
 
 
-            task_id_default = "" # 2a65f90094654235a4c8d337fdca11e1
-            disabled = False
+            task_id_default = TEST_CMN_TASK_ID if test_data else ""
+            disabled = test_data
 
             prev_task_id = st.session_state.get("gnps2_cmn_prev_task_id", "")
             task_id = st.text_input("GNPS2 CMN task ID", task_id_default, disabled=disabled)
@@ -107,16 +126,42 @@ else:
                 st.session_state["task_id"] = task_id
             else:
                 st.session_state["task_id"] = None
+                st.session_state["ft_gnps"] = None
+                st.session_state["md_gnps"] = None
+                st.session_state["an_gnps"] = None
+                st.session_state["nw_gnps"] = None
+                st.session_state["ft_with_annotations"] = None
 
             _, c2, _ = st.columns(3)
 
-            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, width="stretch"):
+            @st.cache_data(show_spinner="Loading CMN test dataset from GNPS2...")
+            def _load_cmn_test(tid):
+                return load_from_gnps2_cmn(tid)
+
+            # The test dataset loads automatically (cached); otherwise wait for the button
+            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0 or test_data, width="stretch") or test_data:
+                st.session_state["ft_gnps"] = None
+                st.session_state["md_gnps"] = None
+                st.session_state["an_gnps"] = None
+                st.session_state["nw_gnps"] = None
+                st.session_state["ft_with_annotations"] = None
                 try:
-                    st.session_state["ft_gnps"], st.session_state["md_gnps"],  st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps2_cmn(task_id)
-                except ValueError as e:
-                    st.warning("No results were found from the GNPS workflow.")
-                    # Optionally, you can log or display the error message: st.info(str(e))
+                    _load_cmn = _load_cmn_test if test_data else load_from_gnps2_cmn
+                    st.session_state["ft_gnps"], st.session_state["md_gnps"],  st.session_state["an_gnps"], st.session_state["nw_gnps"] = _load_cmn(task_id)
+                except Exception as e:
+                    st.error(str(e))
+                    st.session_state["ft_gnps"] = None
+                    st.session_state["md_gnps"] = None
+                    st.session_state["an_gnps"] = None
+                    st.session_state["nw_gnps"] = None
+                    st.session_state["ft_with_annotations"] = None
+                    st.stop()
+
                 ft, md, an, nw, merged, name_key = get_gnps_tables()
+                st.session_state["ft_gnps"] = ft
+                st.session_state["md_gnps"] = md
+                st.session_state["an_gnps"] = an
+                st.session_state["nw_gnps"] = nw
                 st.session_state["ft_with_annotations"] = merged
                 st.session_state["name_key"] = name_key
 
@@ -129,7 +174,7 @@ else:
 
             show_all_files_in_table("ft_gnps", "md_gnps", "an_gnps", "nw_gnps", "ft_with_annotations")
         
-        elif file_origin == "GNPS(2) FBMN task ID":
+        elif file_origin == "GNPS(2) FBMN Task ID":
 
 
             task_id_default = ""
@@ -183,10 +228,10 @@ else:
 
             show_all_files_in_table("ft_gnps", "md_gnps", "an_gnps", "nw_gnps", "ft_with_annotations")
 
-        elif file_origin == "GNPS2 Everything Bagel task ID":
+        elif file_origin == "GNPS2 Everything Bagel Task ID":
 
-            task_id_default = "" # bb0e73ec72fd441db8c77f1d92c57e3d
-            disabled = False
+            task_id_default = TEST_EB_TASK_ID if test_data else ""
+            disabled = test_data
 
             prev_task_id = st.session_state.get("gnps2_eb_prev_task_id", "")
             task_id = st.text_input("Everything Bagel task ID", task_id_default, disabled=disabled, help="GNPS2 Everything Bagel task ID")
@@ -203,19 +248,34 @@ else:
                 st.session_state["task_id"] = task_id
             else:
                 st.session_state["task_id"] = None
+                st.session_state["ft_gnps"] = None
+                st.session_state["md_gnps"] = None
+                st.session_state["an_gnps"] = None
+                st.session_state["nw_gnps"] = None
+                st.session_state["ft_with_annotations"] = None
 
             _, c2, _ = st.columns(3)
 
-            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0, width="stretch"):
+            @st.cache_data(show_spinner="Loading EB test dataset from GNPS2...")
+            def _load_eb_test(tid):
+                return load_from_gnps2_eb(tid)
+
+            # The test dataset loads automatically (cached); otherwise wait for the button
+            if c2.button("Load files from GNPS2", type="primary", disabled=len(task_id) == 0 or test_data, width="stretch") or test_data:
                 try:
-                    with st.status("Fetching Everything Bagel task data...", expanded=True):
-                        st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = load_from_gnps2_eb(task_id)
+                    _load_eb = _load_eb_test if test_data else load_from_gnps2_eb
+                    with st.spinner("Fetching Everything Bagel task data..."):
+                        st.session_state["ft_gnps"], st.session_state["md_gnps"], st.session_state["an_gnps"], st.session_state["nw_gnps"] = _load_eb(task_id)
                 except Exception as e:
                     st.error(str(e))
                     st.session_state["ft_gnps"] = None
                     st.stop()
 
                 ft, md, an, nw, merged, name_key = get_gnps_tables()
+                st.session_state["ft_gnps"] = ft
+                st.session_state["md_gnps"] = md
+                st.session_state["an_gnps"] = an
+                st.session_state["nw_gnps"] = nw
                 st.session_state["ft_with_annotations"] = merged
                 st.session_state["name_key"] = name_key
 
@@ -246,7 +306,7 @@ else:
         st.session_state["nw"] = st.session_state["nw_gnps"]
         st.session_state["ft_with_annotations"] = st.session_state.get("ft_with_annotations", pd.DataFrame())
         
-    if file_origin == "Quantification table and meta data files":
+    if file_origin == "Manual Input":
         reset_dataframes()
         
         st.info("💡 Upload tables in txt (tab separated), tsv, csv or xlsx (Excel) format.")
@@ -343,9 +403,9 @@ else:
         _text_cols = _fwa.select_dtypes(include="object").columns
         _fwa[_text_cols] = _fwa[_text_cols].fillna("NA")
         st.session_state["ft_with_annotations"] = _fwa
-        if file_origin == "Quantification table and meta data files":
+        if file_origin == "Manual Input":
             column_name = st.session_state.get("name_key", None)
-        elif file_origin in ["GNPS(2) FBMN task ID", "Example dataset from publication", "GNPS2 classical molecular networking (CMN) task ID", "GNPS2 Everything Bagel task ID"]:
+        elif file_origin in ["GNPS(2) FBMN Task ID", "Example dataset from publication", "GNPS2 Classical Molecular Networking (CMN) Task ID", "GNPS2 Everything Bagel Task ID"]:
             column_name = "Compound_Name"
         else:
             column_name = None
@@ -428,7 +488,7 @@ else:
                     "attribute for sample selection",
                     md.columns,
                 )
-                sample_options = list(set(md[sample_column].dropna()))
+                sample_options = sorted(set(md[sample_column].dropna()), key=str)
                 if sample_options:
                     sample_rows = c2.multiselect("sample selection", sample_options, sample_options[0])
                 else:
@@ -463,7 +523,7 @@ else:
                     blank_column = c1.selectbox(
                         "attribute for blank selection", non_samples_md.columns
                     )
-                    blank_options = list(set(non_samples_md[blank_column].dropna()))
+                    blank_options = sorted(set(non_samples_md[blank_column].dropna()), key=str)
                     if blank_options:
                         blank_rows = c2.multiselect("blank selection", blank_options, blank_options[0])
                     else:
@@ -522,9 +582,10 @@ else:
                                 show_table(ft.head(), "imputed")
                             # Save ft after imputation
                             st.session_state['ft'] = ft
+                            st.session_state['imputation_done'] = True
                         else:
                             st.warning(f"Can't impute with random values between 1 and lowest value, which is {cutoff_LOD} (rounded).")
-                        st.session_state['imputation_done'] = True
+                            st.session_state['imputation_done'] = False
                     else:
                         st.session_state['imputation_done'] = False
 

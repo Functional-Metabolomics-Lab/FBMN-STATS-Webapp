@@ -20,8 +20,9 @@ def clean_up_md(md):
     # 2) replace the spaces (in the middle) to underscore
     # 3) converting them all to UPPERCASE
     for col in md.columns:
-        if md[col].dtype == str:
-            md[col] = [item.strip().replace(" ", "_").upper() for item in md[col]]
+        # text columns only (object dtype, or pandas' str dtype); NaN and non-text values are left as they are
+        if md[col].dtype == object or pd.api.types.is_string_dtype(md[col]):
+            md[col] = md[col].map(lambda item: item.strip().replace(" ", "_").upper() if isinstance(item, str) else item)
     md.index = [i.replace(".mzXML", "").replace(".mzML", "").replace(" Peak area", "") for i in md.index]
     return md
 
@@ -217,7 +218,8 @@ def normalization(feature_df, meta_data_df, normalization_method):
         normalized = ((feature_df - feature_df.mean(axis=0)) / sd).fillna(0)
 
     elif normalization_method == "Total Ion Current (TIC) or sample-centric normalization":
-        normalized = feature_df.apply(lambda x: x/np.sum(x), axis=1)
+        # a sample without any signal (sum = 0) stays all zeros instead of becoming NaN
+        normalized = feature_df.apply(lambda x: x/np.sum(x), axis=1).fillna(0)
     
     else:
         return md_samples, feature_df

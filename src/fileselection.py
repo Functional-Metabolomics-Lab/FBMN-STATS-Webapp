@@ -1,7 +1,7 @@
 import streamlit as st
 from .common import *
 from gnpsdata import taskresult
-from gnpsdata import workflow_fbmn
+from gnpsdata import workflow_classicnetworking
 import urllib
 import io
 import requests
@@ -144,12 +144,9 @@ GNPS2_FBMN_QUANT_TABLE_PATHS = [ # "reformated" (sic) is the file name GNPS2 act
 def load_from_gnps_fbmn(task_id):
 
     """
-    - Returns (ft, md, an, nw) as DataFrames.
-    - FBMN (cmn=False): tries GNPS2 API first, falls back to GNPS1 URLs.
+    Returns (ft, md, an, nw) as DataFrames for an FBMN task: tries GNPS2 first, falls back to GNPS1 URLs.
     """
-    ft = md = an = nw = None
-
-     # -------- Special case: default task id --------
+    # -------- Special case: default task id --------
     if task_id == "b661d12ba88745639664988329c1363e":
         return load_from_gnps1_fbmn(task_id)
 
@@ -182,8 +179,7 @@ def load_from_gnps_fbmn(task_id):
 
 def load_from_gnps1_fbmn(task_id: str):
 
-    """Load FBMN tables from GNPS1 URLs. Always returns DataFrames (ft required, others optional)."""
-    """Returns (ft, md, an, nw) as DataFrames."""
+    """Load FBMN tables from GNPS1 URLs. Returns (ft, md, an, nw) as DataFrames (ft required, others optional)."""
 
     ft_url = f"https://proteomics2.ucsd.edu/ProteoSAFe/DownloadResultFile?task={task_id}&file=quantification_table_reformatted/&block=main"
     md_url = f"https://proteomics2.ucsd.edu/ProteoSAFe/DownloadResultFile?task={task_id}&file=metadata_merged/&block=main"
@@ -223,47 +219,52 @@ def load_from_gnps1_fbmn(task_id: str):
     return ft, md, an, nw
 
 
+GNPS2_CMN_QUANT_TABLE_PATHS = [ # per-file "Peak area" columns hold the summed precursor intensity of each cluster
+    "nf_output/clustering/featuretable_reformatted_precursorintensity.csv",
+]
+GNPS2_CMN_NETWORK_PATHS = [
+    "nf_output/networking/filtered_pairs.tsv",
+]
+
+
+def _cmn_table(getter, task_id, fallback_path):
+    """
+    Fetches a CMN table with a workflow_classicnetworking getter. gnpsdata reads through pandas' urllib
+    client, which GNPS2 can reject (HTTP 403), so on failure or an empty result fall back to requests.
+    Returns a DataFrame or None.
+    """
+    try:
+        df = getter(task_id, gnps2=True)
+        if isinstance(df, pd.DataFrame) and not df.empty:
+            return df
+    except Exception:
+        pass
+    df, _ = _fetch_gnps2_dataframe_multi(task_id, [fallback_path], delimiter="\t")
+    return df
+
+
 def load_from_gnps2_cmn(task_id):
 
     """
-    Returns (ft, md, an, nw) as DataFrames for CMN.
-    - cmn True; an/nw often unavailable -> empty DFs.
+    Returns (ft, md, an, nw) as DataFrames for a GNPS2 classical molecular networking (CMN) task.
+    - The quantification table is required; metadata, annotations and node pairs are optional.
+    - There is no GNPS1 fallback (GNPS1 CMN task IDs can not be retrieved).
+    - The CMN feature table has m/z and RT set to 0, so the real values come from the cluster summary.
     """
-    ft = md = an = nw = None
-    
-    try: # GNPS2 will run here
-         ft_url = f"https://gnps2.org/resultfile?task={task_id}&file=nf_output/clustering/featuretable_reformatted_precursorintensity.csv"
-         md_url = f"https://gnps2.org/resultfile?task={task_id}&file=nf_output/metadata/merged_metadata.tsv" 
-         an_url = f"https://gnps2.org/resultfile?task={task_id}&file=nf_output/library/merged_results_with_gnps.tsv"
-         nw_url = f"https://gnps2.org/resultfile?task={task_id}&file=nf_output/networking/filtered_pairs.tsv"
-         
-         try:
-             ft = pd.read_csv(ft_url)
-         except Exception as e:
-             st.error(f"Failed to load CMN feature table: {e}")
-             ft = None
-             
-         try:
-             md = pd.read_csv(md_url, sep = "\t", index_col="filename")
-         except pd.errors.EmptyDataError:
-             md = pd.DataFrame()
+    ft, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_CMN_QUANT_TABLE_PATHS, delimiter=",")
+    if ft is None:
+        raise RuntimeError(
+            f"❌ Failed to fetch the feature table for CMN Task ID {task_id}. Tried "
+            f"({', '.join(GNPS2_CMN_QUANT_TABLE_PATHS)}). Please double check the Task ID and that the "
+            f"classical molecular networking workflow completed successfully on GNPS2."
+        )
 
-         try:
-             an = pd.read_csv(an_url, sep="\t")
-         except pd.errors.EmptyDataError:
-             an = pd.DataFrame()
+    md = _cmn_table(workflow_classicnetworking.get_metadata_dataframe, task_id, "nf_output/metadata/merged_metadata.tsv")
+    if isinstance(md, pd.DataFrame) and "filename" in md.columns:
+        md = md.set_index("filename")
+    an = _cmn_table(workflow_classicnetworking.get_librarymatches_dataframe, task_id, "nf_output/library/merged_results_with_gnps.tsv")
+    nw, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_CMN_NETWORK_PATHS, delimiter="\t")
 
-         try:
-             nw = pd.read_csv(nw_url, sep="\t")
-         except pd.errors.EmptyDataError:
-             nw = pd.DataFrame()
-    
-    except (urllib.error.HTTPError, ValueError) as e:
-        print(f"HTTP Error encountered: {e}") # GNPS1 CMN task IDs can not be retrieved and throw HTTP Error 500
-    
-    if ft is None or ft.empty:
-        raise ValueError("Empty result from workflow_fbmn — falling back to CMN CSV path.")
-            
     if not isinstance(md, pd.DataFrame): # Handle empty metadata
         md = pd.DataFrame()
     if not isinstance(an, pd.DataFrame):
@@ -271,11 +272,20 @@ def load_from_gnps2_cmn(task_id):
     if not isinstance(nw, pd.DataFrame):
         nw = pd.DataFrame()
 
+    # Replace the zeroed m/z and RT with the precursor mass and mean RT from the cluster summary
+    cs = _cmn_table(workflow_classicnetworking.get_clustersummary_dataframe, task_id, "nf_output/networking/clustersummary_with_network.tsv")
+    if cs is not None and {"cluster index", "precursor mass", "RTMean"}.issubset(cs.columns):
+        cs = cs.drop_duplicates("cluster index").set_index("cluster index")
+        ft["row m/z"] = ft["row ID"].map(cs["precursor mass"]).fillna(ft["row m/z"])
+        ft["row retention time"] = ft["row ID"].map(cs["RTMean"]).fillna(ft["row retention time"])
+    else:
+        st.warning("⚠️ Could not retrieve the CMN cluster summary, so feature names will not contain m/z and RT.")
+
     index_with_mz_RT = ft.apply(lambda x: f'{x["row ID"]}_{round(x["row m/z"], 4)}_{round(x["row retention time"], 2)}', axis=1)
     ft.index = index_with_mz_RT
     ft.index.name = 'metabolite'
     ft = ft.drop(columns=["row m/z", "row retention time"])
-    
+
     return ft, md, an, nw
 
 
@@ -397,13 +407,11 @@ def load_from_gnps2_eb(task_id):
             f"({', '.join(quant_paths)}) in task {quant_task_id}. Please double check the Task ID and that the "
             f"Everything Bagel workflow completed successfully on GNPS2."
         )
-    st.write(f"✓ Successfully pulled Quantification Table (`{quant_path}`)")
 
     # 2. Metadata
     md, md_path = _fetch_gnps2_task_metadata(task_id, params)
     if isinstance(md, pd.DataFrame) and "filename" in md.columns:
         md = md.set_index("filename")
-        st.write(f"✓ Successfully pulled Metadata (`{md_path}`)")
     else:
         md = pd.DataFrame()
 
@@ -423,7 +431,6 @@ def load_from_gnps2_eb(task_id):
         )
         an = pd.DataFrame()
     else:
-        st.write(f"✓ Successfully pulled Library Results (`{an_path}`)")
         # EB names differ from FBMN's library results; add the FBMN names so the existing merge works.
         # query_scan corresponds to the quantification table's "row ID".
         # Newer EB versions call the compound name column NAME instead of COMPOUND_NAME.
@@ -436,8 +443,6 @@ def load_from_gnps2_eb(task_id):
     nw, _ = _fetch_gnps2_dataframe_multi(task_id, GNPS2_EB_NETWORK_PATHS, delimiter="\t")
     if nw is None:
         nw = pd.DataFrame()
-    else:
-        st.write("✓ Successfully pulled Node Pair Table")
 
     index_with_mz_RT = ft.apply(lambda x: f'{x["row ID"]}_{round(x["row m/z"], 4)}_{round(x["row retention time"], 2)}', axis=1)
     ft.index = index_with_mz_RT
@@ -630,26 +635,3 @@ def merge_annotation(ft, an):
         suffixes=("", "_an")) # avoid column name clashes
     
     return merged, name_key
-
-def merge_annotation_gnps(ft, an):
-    # Coerce keys to string and do a LEFT merge (keep only IDs present in ft)
-    ft_merge = ft.copy()
-    an_merge = an.copy()
-    ft_merge.index = ft_merge.index.astype(str)
-    an_merge['#Scan#'] = an_merge['#Scan#'].astype(str)
-
-    name_key = "Compound_Name"
-
-    # Merge on index vs. #Scan# column
-    merged = ft_merge.merge(
-        an_merge,
-        left_index=True,
-        right_on="#Scan#",
-        how="left",
-        suffixes=("", "_an")
-    )
-
-    return merged, name_key
-
-##################
-
