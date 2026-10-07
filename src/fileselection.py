@@ -292,7 +292,7 @@ def load_from_gnps2_cmn(task_id):
 # Everything Bagel (EB) runs its own feature finding, so its outputs live under
 # nf_output/feature_finding/ instead of FBMN's nf_output/clustering/.
 GNPS2_EB_QUANT_TABLE_PATHS = [ # MZmine-style feature table with per-sample "Peak area" columns
-    "nf_output/feature_finding/feature_finding_results/aligned_features.csv",
+    "nf_output/feature_finding/feature_finding_results/aligned_features_ms2.csv",
 ]
 GNPS2_EB_FEATURE_LIBRARY_PATHS = [ # feature library search results (annotations)
     "nf_output/feature_library_search/merged_feature_library_search_results.tsv",
