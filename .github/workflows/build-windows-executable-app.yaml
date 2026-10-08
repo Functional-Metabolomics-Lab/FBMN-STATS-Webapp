@@ -36,6 +36,15 @@ jobs:
         $PYTHON_DIR="${{ runner.tool_cache }}/Python/${{ env.PYTHON_VERSION }}/x64" # Path from actions/setup-python
         $EMBED_DIR="python-${{ env.PYTHON_VERSION }}"
 
+    - name: Compute MSI version from release tag
+      shell: bash
+      run: |
+        # MSI versions must be numeric major.minor.build. v1.0.3 -> 1.0.3. Each release must be
+        # higher than the last one or Windows Installer will not treat it as an upgrade.
+        TAG="${{ github.event.release.tag_name }}"
+        VER=$(echo "${TAG#v}" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' || true)
+        echo "MSI_VERSION=${VER:-1.0.${{ github.run_number }}}" >> "$GITHUB_ENV"
+
     - name: Install pip
       run: |
         curl -O https://bootstrap.pypa.io/get-pip.py
@@ -49,9 +58,26 @@ jobs:
     - name: Install Required Packages
       run: .\python-${{ env.PYTHON_VERSION }}\python -m pip install --force-reinstall -r requirements-windows.txt --no-warn-script-location
 
+    - name: Precompile Python files
+      # Ship .pyc files so the first launch doesn't compile every package
+      # (slow, and the install folder may not be writable)
+      run: .\python-${{ env.PYTHON_VERSION }}\python -m compileall -q -j 0 python-${{ env.PYTHON_VERSION }}\Lib src pages Statistics_for_Metabolomics.py; exit 0
+
     - name: Create FBmn-STATS-GUIde.bat file
+      shell: bash
       run: |
-        echo " start /min .\python-${{ env.PYTHON_VERSION }}\python -m streamlit run Statistics_for_Metabolomics.py local" > ${{ env.APP_NAME }}.bat
+        # Run in a visible console (not "start /min") so startup errors are not hidden;
+        # closing that window stops the app. cd into the install folder so relative paths resolve.
+        # LITELLM_LOCAL_MODEL_COST_MAP skips litellm's network fetch at import time.
+        # The file watcher only matters when editing source; in the installed app it would also watch the bundled Python.
+        printf '%s\r\n' \
+          '@echo off' \
+          'cd /d "%~dp0"' \
+          'title ${{ env.APP_NAME }} - close this window to stop the app' \
+          'set LITELLM_LOCAL_MODEL_COST_MAP=True' \
+          '.\python-${{ env.PYTHON_VERSION }}\python -m streamlit run Statistics_for_Metabolomics.py --server.fileWatcherType none' \
+          'pause' > ${{ env.APP_NAME }}.bat
+        cat ${{ env.APP_NAME }}.bat
 
     - name: Create All-in-one executable folder
       run: |
@@ -117,9 +143,13 @@ jobs:
         cat <<EOF > streamlit_exe.wxs
         <?xml version="1.0"?>
         <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-          <Product Id="1ec8b822-5005-4a98-95ee-38cede795aae" Name="${{ env.APP_NAME }}" Language="1033" Version="1.0.0.0" Codepage="1252" Manufacturer="Functional Metabolomics Lab" UpgradeCode="2482e972-0c2d-416b-b72e-4d063ee23b61">
+          <Product Id="*" Name="${{ env.APP_NAME }}" Language="1033" Version="${{ env.MSI_VERSION }}" Codepage="1252" Manufacturer="Functional Metabolomics Lab" UpgradeCode="2482e972-0c2d-416b-b72e-4d063ee23b61">
             <Package Id="*" InstallerVersion="300" Compressed="yes" InstallPrivileges="elevated" Platform="x64" />
             <Media Id="1" Cabinet="streamlit.cab" EmbedCab="yes" />
+
+            <!-- Replace any older installed version: the old one is fully uninstalled first, so
+                 stale packages from previous builds cannot linger or shadow the new ones. -->
+            <MajorUpgrade Schedule="afterInstallValidate" DowngradeErrorMessage="A newer version of ${{ env.APP_NAME }} is already installed." />
 
             <!-- Folder structure -->
             <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
