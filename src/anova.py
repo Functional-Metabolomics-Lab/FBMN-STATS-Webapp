@@ -5,7 +5,7 @@ import pingouin as pg
 import plotly.express as px
 import plotly.graph_objects as go
 import time
-from src.utils import get_feature_name_map
+from src.utils import get_feature_name_map, p_sort_key
 
 if 'name_column' not in st.session_state:
     st.session_state['name_column'] = None
@@ -99,7 +99,7 @@ def add_p_correction_to_anova(df, correction):
     if "significant" not in df.columns:
         df.insert(3, "significant", df["p-corrected"] < 0.05)
     
-    df.sort_values("p", inplace=True)
+    df.sort_values("p", inplace=True, kind="stable", key=p_sort_key)
     return df
 
 def anova(df, attribute, correction, elements, _progress_callback=None):
@@ -431,7 +431,7 @@ def add_p_value_correction_to_tukeys(tukey, correction):
             tukey.insert(3, "p-corrected", tukey["stats_p"])
 
         tukey.insert(4, "stats_significant", tukey["p-corrected"] < 0.05)
-        tukey.sort_values("stats_p", inplace=True)
+        tukey.sort_values("stats_p", inplace=True, kind="stable", key=p_sort_key)
     return tukey
 
 def _get_tukey_feature_map(df_tukey):

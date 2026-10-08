@@ -111,7 +111,7 @@ def run_random_forest(data, md, attribute, n_trees, random_seed=None, _progress_
 
     # Extract the important features in the model
     df_important_features = pd.DataFrame(rf.feature_importances_, 
-                                         index=data.columns).sort_values(by=0, ascending=False)
+                                         index=data.columns).sort_values(by=0, ascending=False, kind="stable")
     df_important_features.columns = ["importance"]
     
     return df_oob, df_important_features, log, class_report, label_mapping, test_confusion_df, train_confusion_df, test_accuracy, train_accuracy

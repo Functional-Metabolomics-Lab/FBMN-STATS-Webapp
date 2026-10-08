@@ -5,7 +5,7 @@ import uuid
 import base64
 
 from src.chat import render_sidebar_chat
-from src.utils import generate_boxplot_pdf_generic
+from src.utils import generate_boxplot_pdf_generic, p_sort_key
 
 dataframe_names = ("md",
                    "data",
@@ -368,7 +368,7 @@ def filter_top_significant_points_ui(df, key_prefix, *, min_n=5, max_n=100, defa
 
     ranked = df.copy()
     ranked[p_col] = pd.to_numeric(ranked[p_col], errors="coerce")
-    ranked = ranked.sort_values(p_col, ascending=True, na_position="last").head(top_n)
+    ranked = ranked.sort_values(p_col, ascending=True, na_position="last", kind="stable", key=p_sort_key).head(top_n)
     st.caption(f"Showing top {len(ranked)} points ranked by {p_col}.")
     return ranked
 

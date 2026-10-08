@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from scipy.stats import kruskal
 from scipy import stats
 import scikit_posthocs as sp
-from src.utils import get_feature_name_map
+from src.utils import get_feature_name_map, p_sort_key
 
 def gen_kruskal_data(group_data, _progress_callback=None):
     total = len(group_data[0].columns)
@@ -29,7 +29,7 @@ def add_p_correction_to_kruskal(df, correction):
     if "significant" not in df.columns:
         df.insert(3, "significant", df["p-corrected"] < 0.05)
     # sort by p-value
-    df.sort_values("p", inplace=True)
+    df.sort_values("p", inplace=True, kind="stable", key=p_sort_key)
     return df
 
 def kruskal_wallis(df, attribute, correction, elements, _progress_callback=None):
@@ -354,7 +354,7 @@ def dunn(df, attribute, elements, correction, _progress_callback=None):
 
     # significance on the pairwise-adjusted p-value (protocol Step 77: dunn_output$P.adj < 0.05)
     dunn_df["significant"] = dunn_df[pcol] < 0.05
-    dunn_df = dunn_df.sort_values(pcol)
+    dunn_df = dunn_df.sort_values(pcol, kind="stable", key=p_sort_key)
     st.session_state.dunn_returned_metabolites = len(dunn_df.dropna(subset=["p"]))
 
     st.session_state.dunn_n = len(dunn_df)
@@ -420,7 +420,7 @@ def add_p_value_correction_to_dunns(dunn, correction):
     
     # sort by p-value
     sort_col = "p-corrected" if "p-corrected" in dunn.columns else "p"
-    dunn.sort_values(sort_col, inplace=True)
+    dunn.sort_values(sort_col, inplace=True, kind="stable", key=p_sort_key)
 
     return dunn
 

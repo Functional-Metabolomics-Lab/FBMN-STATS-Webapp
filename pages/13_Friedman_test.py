@@ -221,7 +221,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             _df_fr = st.session_state.df_friedman
             _p_col = next((c for c in ["p-corrected", "p"] if c in _df_fr.columns), None)
             if _p_col:
-                all_metabolites = list(_df_fr.sort_values(_p_col)["metabolite"])
+                all_metabolites = list(_df_fr.sort_values(_p_col, kind="stable", key=p_sort_key)["metabolite"])
             else:
                 all_metabolites = sorted(list(_df_fr["metabolite"]))
 
@@ -301,7 +301,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     else:
                         _fri_pool = _fri_df[_fri_df["significant"] == _fri_want_sig]
                         if _fri_p_col:
-                            _fri_pool = _fri_pool.sort_values(_fri_p_col)
+                            _fri_pool = _fri_pool.sort_values(_fri_p_col, kind="stable", key=p_sort_key)
                         _fri_mets = list(_fri_pool["metabolite"][:_fri_top_n])
                         _fri_label = f"top{_fri_top_n}_{'significant' if _fri_want_sig else 'insignificant'}"
                 if _fri_mets:

@@ -272,7 +272,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     else:
                         _ttest_pool = df[df[_sig_col] == _ttest_want_sig]
                         if _ttest_p_col:
-                            _ttest_pool = _ttest_pool.sort_values(_ttest_p_col)
+                            _ttest_pool = _ttest_pool.sort_values(_ttest_p_col, kind="stable", key=p_sort_key)
                         _ttest_mets = list(_ttest_pool.index[:_ttest_top_n])
                         _ttest_label = f"top{_ttest_top_n}_{'significant' if _ttest_want_sig else 'insignificant'}"
                 if _ttest_mets:

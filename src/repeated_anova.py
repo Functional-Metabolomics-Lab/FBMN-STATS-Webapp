@@ -5,7 +5,7 @@ import pingouin as pg
 import plotly.express as px
 import plotly.graph_objects as go
 import time
-from src.utils import get_feature_name_map
+from src.utils import get_feature_name_map, p_sort_key
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ def add_p_correction_to_rm_anova(df, correction):
                   pg.multicomp(df["p"].astype(float), method=correction)[1])
     if "significant" not in df.columns:
         df.insert(3, "significant", df["p-corrected"] < 0.05)
-    df.sort_values("p", inplace=True)
+    df.sort_values("p", inplace=True, kind="stable", key=p_sort_key)
     return df
 
 

@@ -174,7 +174,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                 _df_kw = st.session_state.df_kruskal
                 _p_col = next((c for c in ["p-corrected", "p"] if c in _df_kw.columns), None)
                 if _p_col:
-                    all_metabolites = list(_df_kw.sort_values(_p_col)["metabolite"])
+                    all_metabolites = list(_df_kw.sort_values(_p_col, kind="stable", key=p_sort_key)["metabolite"])
                 else:
                     all_metabolites = sorted(list(_df_kw["metabolite"]))
                 def metabolite_label(m):
@@ -269,7 +269,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                         else:
                             _kw_pool = _kw_df[_kw_df["significant"] == _kw_want_sig]
                             if _kw_p_col:
-                                _kw_pool = _kw_pool.sort_values(_kw_p_col)
+                                _kw_pool = _kw_pool.sort_values(_kw_p_col, kind="stable", key=p_sort_key)
                             _kw_mets = list(_kw_pool["metabolite"][:_kw_top_n])
                             _kw_label = f"top{_kw_top_n}_{'significant' if _kw_want_sig else 'insignificant'}"
                     if _kw_mets:

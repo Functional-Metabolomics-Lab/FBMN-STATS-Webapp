@@ -183,7 +183,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
 
                 _p_col = next((c for c in ["p-corrected", "p"] if c in st.session_state.df_anova.columns), None)
                 if _p_col:
-                    _sorted_idx = list(st.session_state.df_anova.sort_values(_p_col).index)
+                    _sorted_idx = list(st.session_state.df_anova.sort_values(_p_col, kind="stable", key=p_sort_key).index)
                     candidates = [m for m in _sorted_idx if m in set(candidates)]
                 else:
                     candidates.sort()
@@ -279,7 +279,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                             _want_sig = (_pdf_mode == "Top N significant")
                             _pool = _df_for_pdf[_df_for_pdf["significant"] == _want_sig]
                             if _p_sort_col:
-                                _pool = _pool.sort_values(_p_sort_col)
+                                _pool = _pool.sort_values(_p_sort_col, kind="stable", key=p_sort_key)
                             _mets_for_pdf = list(_pool.index[: _top_n])
                             _file_label = f"top{_top_n}_{'significant' if _want_sig else 'insignificant'}"
 

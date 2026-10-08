@@ -255,7 +255,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     else:
                         _wil_pool = df[df[_wil_sig_col] == _wil_want_sig]
                         if _wil_p_col:
-                            _wil_pool = _wil_pool.sort_values(_wil_p_col)
+                            _wil_pool = _wil_pool.sort_values(_wil_p_col, kind="stable", key=p_sort_key)
                         _wil_mets = list(_wil_pool.index[:_wil_top_n])
                         _wil_label = f"top{_wil_top_n}_{'significant' if _wil_want_sig else 'insignificant'}"
                 if _wil_mets:

@@ -185,7 +185,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     else:
                         _mwu_pool = df[df[_mwu_sig_col] == _mwu_want_sig]
                         if _mwu_p_col:
-                            _mwu_pool = _mwu_pool.sort_values(_mwu_p_col)
+                            _mwu_pool = _mwu_pool.sort_values(_mwu_p_col, kind="stable", key=p_sort_key)
                         _mwu_mets = list(_mwu_pool.index[:_mwu_top_n])
                         _mwu_label = f"top{_mwu_top_n}_{'significant' if _mwu_want_sig else 'insignificant'}"
                 if _mwu_mets:

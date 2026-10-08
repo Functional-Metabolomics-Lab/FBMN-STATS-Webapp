@@ -106,7 +106,25 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     st.session_state["_prev_rm_anova_groups"] = list(rm_anova_groups)
 
     min_required = 3
-    run_disabled = not ("rm_anova_groups" in st.session_state and len(st.session_state.rm_anova_groups) >= min_required)
+    # Subjects are the blocks of the design. pg.rm_anova silently averages a subject's repeated samples in one
+    # condition and silently drops subjects that miss a condition, so check the pairing as the Friedman page does.
+    pairing_ok = False
+    if rm_subject is not None and len(rm_anova_groups) >= min_required:
+        from src.utils import check_pairing
+        n_subjects, duplicated_subjects = check_pairing(st.session_state.md, attribute, rm_subject, rm_anova_groups)
+        if duplicated_subjects:
+            st.error(
+                f"Some subjects have more than one sample in the same group, so blocks are ambiguous: "
+                f"{', '.join(duplicated_subjects[:10])}{' …' if len(duplicated_subjects) > 10 else ''}. "
+                "Please choose a column that uniquely identifies each subject."
+            )
+        elif n_subjects < 2:
+            st.error("Fewer than 2 subjects are measured in all selected groups. Please check the subject/pairing column.")
+        else:
+            st.info(f"{n_subjects} subjects are measured in all selected groups.")
+            pairing_ok = True
+
+    run_disabled = not ("rm_anova_groups" in st.session_state and len(st.session_state.rm_anova_groups) >= min_required) or not pairing_ok
 
     st.button("Run Repeated Measures ANOVA", key="run_rm_anova", type="primary", disabled=run_disabled)
 
@@ -208,7 +226,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
             _df_rm = st.session_state.df_rm_anova
             _p_col = next((c for c in ["p-corrected", "p"] if c in _df_rm.columns), None)
             if _p_col:
-                all_metabolites = list(_df_rm.sort_values(_p_col)["metabolite"])
+                all_metabolites = list(_df_rm.sort_values(_p_col, kind="stable", key=p_sort_key)["metabolite"])
             else:
                 all_metabolites = sorted(list(_df_rm["metabolite"]))
 
@@ -288,7 +306,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
                     else:
                         _rma_pool = _rma_df[_rma_df["significant"] == _rma_want_sig]
                         if _rma_p_col:
-                            _rma_pool = _rma_pool.sort_values(_rma_p_col)
+                            _rma_pool = _rma_pool.sort_values(_rma_p_col, kind="stable", key=p_sort_key)
                         _rma_mets = list(_rma_pool["metabolite"][:_rma_top_n])
                         _rma_label = f"top{_rma_top_n}_{'significant' if _rma_want_sig else 'insignificant'}"
                 if _rma_mets:

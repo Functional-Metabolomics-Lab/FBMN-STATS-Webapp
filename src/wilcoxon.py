@@ -5,6 +5,7 @@ import pingouin as pg
 import plotly.express as px
 import plotly.graph_objects as go
 import time
+from src.utils import p_sort_key
 
 
 def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correction, subject_col, _progress_callback=None):
@@ -74,7 +75,7 @@ def gen_wilcoxon_data(wilcoxon_attribute, target_groups, alternative, p_correcti
     wilcoxon_df.insert(8, "B", target_groups[1])
 
     wilcoxon_df = _clean_wilcoxon_dataframe(wilcoxon_df)
-    return wilcoxon_df.sort_values("p-corrected")
+    return wilcoxon_df.sort_values("p-corrected", kind="stable", key=p_sort_key)
 
 
 def _clean_wilcoxon_dataframe(df):

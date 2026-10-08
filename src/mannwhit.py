@@ -3,6 +3,7 @@ import numpy as np
 import streamlit as st
 import pingouin as pg
 import time
+from src.utils import p_sort_key
 
 def gen_mwu_data(mwu_attribute, target_groups, alternative, p_correction, _progress_callback=None):
     df = pd.concat([st.session_state.data, st.session_state.md], axis=1)
@@ -53,7 +54,7 @@ def gen_mwu_data(mwu_attribute, target_groups, alternative, p_correction, _progr
     mwu.insert(7, "A", target_groups[0])
     mwu.insert(8, "B", target_groups[1])
     mwu = _clean_mwu_dataframe(mwu)
-    return mwu.sort_values("p-corrected")
+    return mwu.sort_values("p-corrected", kind="stable", key=p_sort_key)
 
 def _clean_mwu_dataframe(df):
     df = df.copy()

@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import scipy.stats as stats
 import numpy as np
 import time
+from src.utils import p_sort_key
 
 def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correction, p_correction, subject_col=None, _progress_callback=None):
     """Run a t-test per metabolite between the two target groups.
@@ -70,6 +71,9 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
         else:
             result["ttest_type"] = "Student"
         
+        # pingouin rounds CI95 to 2 decimals, which collapses small-scale data to "0.01"/"0." -
+        # recompute the CI of the mean difference (A - B) at full precision.
+        result["CI95"] = [_mean_diff_ci(group1, group2, paired, alternative, correction_param)]
         result["metabolite"] = col
         result["mean(A)"] = mean1
         result["mean(B)"] = mean2
@@ -101,7 +105,46 @@ def gen_ttest_data(ttest_attribute, target_groups, paired, alternative, correcti
     # Clean up data types to avoid serialization issues
     ttest = _clean_ttest_dataframe(ttest)
 
-    return ttest.sort_values("p-corrected")
+    return ttest.sort_values("p-corrected", kind="stable", key=p_sort_key)
+
+def _mean_diff_ci(x, y, paired, alternative, welch):
+    """95% CI of mean(x) - mean(y), unrounded; matches pingouin's definition (one-sided -> +/-inf)."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    nx, ny = len(x), len(y)
+    try:
+        if paired and nx == ny:
+            d = x - y
+            diff, dof, se = d.mean(), nx - 1, d.std(ddof=1) / np.sqrt(nx)
+        else:
+            diff = x.mean() - y.mean()
+            vx, vy = x.var(ddof=1), y.var(ddof=1)
+            if welch is True:
+                v1, v2 = vx / nx, vy / ny
+                se = np.sqrt(v1 + v2)
+                dof = (v1 + v2) ** 2 / (v1 ** 2 / (nx - 1) + v2 ** 2 / (ny - 1))
+            else:
+                dof = nx + ny - 2
+                se = np.sqrt(((nx - 1) * vx + (ny - 1) * vy) / dof * (1 / nx + 1 / ny))
+        tcrit = stats.t.ppf(0.975 if alternative == "two-sided" else 0.95, dof)
+        lo, hi = diff - tcrit * se, diff + tcrit * se
+        if alternative == "greater":
+            hi = np.inf
+        elif alternative == "less":
+            lo = -np.inf
+        return np.array([lo, hi])
+    except Exception:
+        return np.array([np.nan, np.nan])
+
+
+def _format_ci(ci):
+    """Format a pingouin CI95 array/list as "[lo, hi]" (inf for one-sided tests, nan if undefined)."""
+    try:
+        lo, hi = (float(v) for v in ci)
+    except (TypeError, ValueError):
+        return str(ci)
+    return f"[{lo:.4g}, {hi:.4g}]"
+
 
 def _clean_ttest_dataframe(df):
     """Clean up t-test dataframe to avoid Arrow serialization issues."""
@@ -119,9 +162,13 @@ def _clean_ttest_dataframe(df):
         if col in df.columns:
             df[col] = df[col].astype(bool)
     
+    # CI95 holds numpy arrays, which Streamlit's cache and Arrow cannot hash/serialize.
+    # Render as "[lo, hi]" (str(array) gives padded, space-separated text like "[-1.2   3.4]").
+    if "CI95" in df.columns:
+        df["CI95"] = df["CI95"].apply(_format_ci)
+
     # Ensure string columns are proper string types
-    # (CI95 holds numpy arrays, which Streamlit's cache and Arrow cannot hash/serialize)
-    str_cols = ["ttest_type", "attribute", "A", "B", "CI95"]
+    str_cols = ["ttest_type", "attribute", "A", "B"]
     for col in str_cols:
         if col in df.columns:
             df[col] = df[col].astype(str)

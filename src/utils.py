@@ -75,6 +75,15 @@ def generate_boxplot_pdf_generic(df, metabolites, boxplot_fn):
 allowed_formats = "Allowed formats: csv (comma separated), tsv (tab separated), txt (tab separated), xlsx (Excel file)."
 
 
+def p_sort_key(s):
+    """Sort key for p-value columns: p-values rounded to 12 significant digits.
+
+    Results that are equal up to floating-point noise (e.g. 0.18341541794550587 and 0.18341541794550603 for the
+    same Kruskal-Wallis H) stay tied and, with kind="stable", keep their feature order on every machine.
+    """
+    return pd.to_numeric(s, errors="coerce").map(lambda x: float(f"{x:.12g}") if pd.notnull(x) else x)
+
+
 def get_feature_name_map():
     """Return a mapping metabolite_id -> feature name from ft_gnps, or None."""
     ft = st.session_state.get("ft_gnps", pd.DataFrame())
