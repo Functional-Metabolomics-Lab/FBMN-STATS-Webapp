@@ -120,7 +120,7 @@ if st.session_state.data is not None and not st.session_state.data.empty:
     ]
     hca_data_filtered = st.session_state.data.loc[hca_md_filtered.index]
 
-    # Parse m/z and RT values from feature labels (format: ID_mz@RT)
+    # Parse m/z and RT values from feature labels (format: ID_mz_RT or ID_mz@RT)
     all_cols = list(hca_data_filtered.columns)
     mz_vals, rt_vals = parse_feature_labels(all_cols)
 

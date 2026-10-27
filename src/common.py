@@ -27,7 +27,19 @@ dataframe_names = ("md",
                    "nw_gnps",
                    "df_gnps_annotations",
                    "df_wilcoxon",
-                   "df_friedman")
+                   "df_friedman",
+                   "df_mwu")
+
+# results that depend on the sidebar p-value correction
+corrected_result_names = ("df_anova",
+                          "df_tukey",
+                          "df_rm_anova",
+                          "df_ttest",
+                          "df_kruskal",
+                          "df_dunn",
+                          "df_mwu",
+                          "df_wilcoxon",
+                          "df_friedman")
 
 # Benjamini/Hochberg is listed first so it is the default, as in the FBMN-STATS protocol
 # ("In all our univariate tests, we apply the BH metric to our P values").
@@ -42,9 +54,24 @@ corrections_map = {"Benjamini/Hochberg FDR": "fdr_bh",
 posthocs_correction_map = {"fdr_bh": "fdr_bh", "none": None, "sidak": "sidak",
                            "bonf": "bonferroni", "fdr_by": "fdr_by"}
 
+def clear_derived_state():
+    """Remove figures, shown tables and run counters so neither the pages nor the chat show stale results."""
+    for key in list(st.session_state.keys()):
+        if (key.startswith(("page_figs_", "pae_"))
+                or key.endswith(("_attempted_metabolites", "_returned_metabolites"))
+                or key in ("cluster_fig", "last_figure", "_shown_tables", "analysis_results")):
+            del st.session_state[key]
+
 def reset_dataframes():
     for key in dataframe_names:
         st.session_state[key] = None
+    clear_derived_state()
+
+def reset_corrected_results():
+    # on_change of the p-value correction: results computed with the old method must be re-run
+    for key in corrected_result_names:
+        st.session_state[key] = pd.DataFrame()
+    clear_derived_state()
 
 def init_state():
     defaults = {
@@ -68,9 +95,9 @@ def clear_cache_button():
             st.cache_resource.clear()
         
         # Clear all session state variables
-        for key in dataframe_names:
-            st.session_state[key] = None
-        
+        reset_dataframes()
+        st.session_state["data_preparation_done"] = False
+
         # Reset chat history
         if "chat_history" in st.session_state:
             st.session_state["chat_history"] = []
@@ -101,7 +128,9 @@ def page_setup():
         with st.expander("⚙️ Settings", expanded=True):
             st.selectbox("p-value correction",
                          corrections_map.keys(),
-                         key="p_value_correction")
+                         key="p_value_correction",
+                         on_change=reset_corrected_results,
+                         help="Changing this clears existing test results; re-run the test to apply the new correction.")
             st.selectbox(
                 "image export format",
                 ["svg", "png", "jpeg", "webp"],
@@ -216,13 +245,15 @@ def _fix_dataframe_types(df):
         if df[col].dtype == 'object':
             # Try to convert to numeric first
             try:
-                # Check if the column contains mostly numeric values
+                # Only convert when every non-empty value parses; a partial match would silently turn
+                # labels such as "Blank" into NaN. Zero-padded IDs ("001") stay text so they still match.
+                values = df[col].dropna().astype(str).str.strip()
+                values = values[values != '']
                 numeric_values = pd.to_numeric(df[col], errors='coerce')
-                non_null_count = numeric_values.count()
-                total_count = len(df[col])
-                
-                # If more than 80% of values are numeric, convert to numeric
-                if non_null_count / total_count > 0.8:
+
+                if (len(values) > 0
+                        and pd.to_numeric(values, errors='coerce').notna().all()
+                        and not values.str.match(r'^[+-]?0\d').any()):
                     df[col] = numeric_values
                 else:
                     # Convert to string to avoid mixed types

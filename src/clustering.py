@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,22 +9,24 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 
+# ID_mz_RT (GNPS loaders) or ID_mz@RT, optionally followed by "&CompoundName" (added by annotation)
+_FEATURE_LABEL_RE = re.compile(r"_(?P<mz>\d+(?:\.\d+)?)[_@](?P<rt>\d+(?:\.\d+)?)$")
+
+
 def parse_feature_labels(columns):
-    """Parse feature labels formatted as ID_mz@RT.
+    """Parse feature labels formatted as ID_mz_RT or ID_mz@RT, with an optional "&Name" suffix.
 
     Returns two lists (mz_values, rt_values) aligned with the input columns.
     Entries that don't match the expected format are returned as None.
     """
     mz_values, rt_values = [], []
     for col in columns:
-        try:
-            col = str(col)  # feature labels can be non-strings (e.g. integer IDs)
-            at_idx = col.index("@")
-            rt = float(col[at_idx + 1:])
-            mz = float(col[:at_idx].rsplit("_", 1)[1])
-            mz_values.append(mz)
-            rt_values.append(rt)
-        except (ValueError, IndexError):
+        # feature labels can be non-strings (e.g. integer IDs)
+        match = _FEATURE_LABEL_RE.search(str(col).split("&", 1)[0])
+        if match:
+            mz_values.append(float(match["mz"]))
+            rt_values.append(float(match["rt"]))
+        else:
             mz_values.append(None)
             rt_values.append(None)
     return mz_values, rt_values
