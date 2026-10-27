@@ -82,7 +82,7 @@ def page_setup():
     st.set_page_config(
         page_title="Statistics for Metabolomics",
         page_icon="assets/app_icon.ico",
-        # layout="wide",
+        layout="wide",
         initial_sidebar_state="auto",
         menu_items=None,
     )
